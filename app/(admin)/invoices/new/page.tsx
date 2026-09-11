@@ -1,922 +1,725 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 interface Customer {
-  id: string;
-  name: string;
-  phone: string;
-  address_1?: string;
-  address_2?: string;
+  id: number;
+  customer_name?: string;
+  customer_phone?: string;
+  address1?: string;
+  address2?: string;
 }
 
-interface InvoiceItemInput {
-  description: string;
-  quantity: number;
-  unit_price: number;
-  amount: number;
+interface InvoiceItem {
+  item_name?: string;
+  description?: string;
+  qty?: number;
+  quantity?: number;
+  unit_price?: number;
+  total_price?: number;
+  amount?: number;
+}
+
+interface Order {
+  id: number;
+  order_number?: string;
+  customer_id: number;
+  deposit_paid?: number;
+  deposit_amount?: number;
+  total_price?: number;
+  event_date?: string;
+  items_data?: any;
+  customers?: Customer;
 }
 
 export default function NewInvoicePage() {
   const router = useRouter();
+  const [loading, setLoading] = useState(false);
 
-  // State Utama Invois
-  const [invoiceNumber, setInvoiceNumber] =
-    useState<string>("INV-WM-Loading...");
-  const [title, setTitle] = useState<string>("");
+  // Data Sources
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
-  const [selectedCustomerObj, setSelectedCustomerObj] =
-    useState<Customer | null>(null);
-  const [searchCustomer, setSearchCustomer] = useState<string>("");
-  const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
+  const [orders, setOrders] = useState<Order[]>([]);
+
+  // Selection States
+  const [selectedOrderId, setSelectedOrderId] = useState<string>("");
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
+    null,
+  );
+  const [isCustomerLocked, setIsCustomerLocked] = useState(false);
+
+  // Live Search Customer State
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // State Modal Tambah Pelanggan Baharu
-  const [isAddCustomerOpen, setIsAddCustomerOpen] = useState<boolean>(false);
-  const [newCustomerName, setNewCustomerName] = useState<string>("");
-  const [newCustomerPhone, setNewCustomerPhone] = useState<string>("");
-  const [newCustomerAddress1, setNewCustomerAddress1] = useState<string>("");
-  const [newCustomerAddress2, setNewCustomerAddress2] = useState<string>("");
-  const [savingCustomer, setSavingCustomer] = useState<boolean>(false);
-
-  // Tarikh & Tempoh
-  const [issueDate, setIssueDate] = useState<string>(
+  // Form Basic States
+  const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [eventDate, setEventDate] = useState("");
+  const [invoiceDate, setInvoiceDate] = useState(
     new Date().toISOString().split("T")[0],
   );
-  const [termDays, setTermDays] = useState<number>(14);
-  const [dueDate, setDueDate] = useState<string>("");
+  const [paymentTerms, setPaymentTerms] = useState<number>(14);
+  const [dueDate, setDueDate] = useState("");
 
-  // Mod Pakej Per Person & Cas Penghantaran Terasing
-  const [isPackageMode, setIsPackageMode] = useState<boolean>(true);
-  const [packagePricePerPax, setPackagePricePerPax] = useState<number>(12.0);
-  const [packagePaxCount, setPackagePaxCount] = useState<number>(50);
-  const [deliveryFee, setDeliveryFee] = useState<number>(0);
-
-  // Kewangan & Nota
-  const [deposit, setDeposit] = useState<number>(0);
-  const [notes, setNotes] = useState<string>(
-    "Sedap bagitahu kawan, Tak sedap bagitahu kami.🤙 Terima kasih atas urus niaga anda. Bayaran boleh dibuat melalui QR atau Bank Transfer",
-  );
-
-  // Item Invois
-  const [items, setItems] = useState<InvoiceItemInput[]>([
-    {
-      description: "Nasi Ambeng",
-      quantity: 1,
-      unit_price: 0,
-      amount: 0,
-    },
+  // Items & Financials
+  const [items, setItems] = useState<InvoiceItem[]>([
+    { item_name: "", qty: 1, unit_price: 0 },
   ]);
+  const [deliveryFee, setDeliveryFee] = useState<number>(0);
+  const [depositAmount, setDepositAmount] = useState<number>(0);
+  const [notes, setNotes] = useState("");
 
-  // Status & Modal Penjanaan Invois
-  const [loading, setLoading] = useState<boolean>(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [createdInvoiceUrl, setCreatedInvoiceUrl] = useState<string | null>(
-    null,
-  );
-  const [createdInvoiceSlug, setCreatedInvoiceSlug] = useState<string | null>(
-    null,
-  );
-  const [createdInvoiceToken, setCreatedInvoiceToken] = useState<string | null>(
-    null,
-  );
-  const [copied, setCopied] = useState<boolean>(false);
-
-  // Tutup dropdown apabila klik di luar kawasan
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
+    loadInitialData();
+    generateInvoiceNumber();
+
+    const handleClickOutside = (event: MouseEvent) => {
       if (
         dropdownRef.current &&
         !dropdownRef.current.contains(event.target as Node)
       ) {
         setIsDropdownOpen(false);
       }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
     };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Tarik No. Invois Terkini
   useEffect(() => {
-    async function fetchNextInvoiceNumber() {
-      const { data, error } = await supabase
-        .from("invoices")
-        .select("invoice_number")
-        .order("created_at", { ascending: false })
-        .limit(1);
+    if (invoiceDate) {
+      const date = new Date(invoiceDate);
+      date.setDate(date.getDate() + Number(paymentTerms));
+      const yyyy = date.getFullYear();
+      const mm = String(date.getMonth() + 1).padStart(2, "0");
+      const dd = String(date.getDate()).padStart(2, "0");
+      setDueDate(`${yyyy}-${mm}-${dd}`);
+    }
+  }, [invoiceDate, paymentTerms]);
 
-      if (error) {
-        setInvoiceNumber("INV-WM-100001");
-        return;
-      }
+  // Ekstrak nama & telefon secara selamat
+  const getCustName = (c?: Customer | null) =>
+    c?.customer_name || "Pelanggan Tanpa Nama";
 
-      if (data && data.length > 0 && data[0].invoice_number) {
-        const lastNumberStr = data[0].invoice_number.replace("INV-WM-", "");
-        const lastNumber = parseInt(lastNumberStr, 10);
-        setInvoiceNumber(
-          !isNaN(lastNumber) ? `INV-WM-${lastNumber + 1}` : "INV-WM-100001",
-        );
-      } else {
-        setInvoiceNumber("INV-WM-100001");
+  const getCustPhone = (c?: Customer | null) => c?.customer_phone || "-";
+
+  // Ekstrak barangan daripada JSONB
+  const parseOrderItems = (rawItems: any): InvoiceItem[] => {
+    if (!rawItems) return [];
+    let parsed = rawItems;
+    if (typeof rawItems === "string") {
+      try {
+        parsed = JSON.parse(rawItems);
+      } catch (e) {
+        return [];
       }
     }
-    fetchNextInvoiceNumber();
-  }, []);
+    if (Array.isArray(parsed)) {
+      return parsed.map((it: any) => ({
+        item_name: it.item_name || it.description || "",
+        qty: Number(it.qty || it.quantity || 1),
+        unit_price: Number(it.unit_price || 0),
+        total_price: Number(it.total_price || it.amount || 0),
+      }));
+    }
+    return [];
+  };
 
-  // Auto-Kira Tarikh Akhir
-  useEffect(() => {
-    if (!issueDate) return;
-    const date = new Date(issueDate);
-    date.setDate(date.getDate() + Number(termDays));
-    setDueDate(date.toISOString().split("T")[0]);
-  }, [issueDate, termDays]);
+  const loadInitialData = async () => {
+    try {
+      const [custRes, ordRes] = await Promise.all([
+        supabase.from("customers").select("*"),
+        supabase.from("orders").select("*").order("id", { ascending: false }),
+      ]);
 
-  // Tarik Data Pelanggan
-  const fetchCustomers = async () => {
-    const { data, error } = await supabase
-      .from("customers")
-      .select("id, name, phone, address_1, address_2")
-      .order("name");
+      if (custRes.error)
+        console.error("Ralat Customers:", custRes.error.message);
+      if (ordRes.error) console.error("Ralat Orders:", ordRes.error.message);
 
-    if (!error && data) {
-      setCustomers(data);
+      const customerList: Customer[] = custRes.data || [];
+      setCustomers(customerList);
+
+      if (ordRes.data) {
+        const mergedOrders = ordRes.data.map((ord: any) => {
+          const matchedCust = customerList.find(
+            (c) => String(c.id) === String(ord.customer_id),
+          );
+          return {
+            ...ord,
+            customers: matchedCust || undefined,
+          };
+        });
+        setOrders(mergedOrders);
+      }
+    } catch (err: any) {
+      console.error("Ralat memuatkan data:", err.message || err);
     }
   };
 
-  useEffect(() => {
-    fetchCustomers();
-  }, []);
+  const generateInvoiceNumber = () => {
+    const today = new Date().toISOString().split("T")[0].replace(/-/g, "");
+    const randomDigits = Math.floor(1000 + Math.random() * 9000);
+    setInvoiceNumber(`INV-${today}-${randomDigits}`);
+  };
 
-  // Simpan Pelanggan Baharu
-  const handleCreateCustomer = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCustomerName.trim()) {
-      alert("Sila masukkan nama pelanggan.");
+  const handleOrderSelect = (orderIdStr: string) => {
+    setSelectedOrderId(orderIdStr);
+
+    if (!orderIdStr) {
+      setIsCustomerLocked(false);
+      setSelectedCustomer(null);
+      setCustomerSearch("");
+      setEventDate("");
+      setItems([{ item_name: "", qty: 1, unit_price: 0 }]);
+      setDepositAmount(0);
       return;
     }
 
-    setSavingCustomer(true);
-    try {
-      const { data, error } = await supabase
-        .from("customers")
-        .insert([
-          {
-            name: newCustomerName.trim(),
-            phone: newCustomerPhone.trim() || null,
-            address_1: newCustomerAddress1.trim() || null,
-            address_2: newCustomerAddress2.trim() || null,
-          },
-        ])
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      if (data) {
-        await fetchCustomers();
-        setSelectedCustomerId(data.id);
-        setSelectedCustomerObj(data);
-        setSearchCustomer(`${data.name} (${data.phone || "Tiada No"})`);
-
-        setNewCustomerName("");
-        setNewCustomerPhone("");
-        setNewCustomerAddress1("");
-        setNewCustomerAddress2("");
-        setIsAddCustomerOpen(false);
+    const order = orders.find((o) => String(o.id) === orderIdStr);
+    if (order) {
+      if (order.customers) {
+        setSelectedCustomer(order.customers);
+        setCustomerSearch(getCustName(order.customers));
+        setIsCustomerLocked(true);
+      } else {
+        setIsCustomerLocked(false);
       }
-    } catch (err: unknown) {
-      const error = err as Error;
-      alert("Gagal menambah pelanggan: " + error.message);
-    } finally {
-      setSavingCustomer(false);
+
+      if (order.event_date) setEventDate(order.event_date);
+
+      const parsedItems = parseOrderItems(order.items_data);
+      if (parsedItems.length > 0) {
+        setItems(parsedItems);
+      }
+
+      const dep = order.deposit_paid ?? order.deposit_amount;
+      if (dep !== undefined && dep !== null) {
+        setDepositAmount(Number(dep));
+      }
     }
   };
 
-  const filteredCustomers = customers.filter(
-    (c) =>
-      c.name.toLowerCase().includes(searchCustomer.toLowerCase()) ||
-      (c.phone && c.phone.includes(searchCustomer)),
-  );
+  const handleSelectCustomer = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setCustomerSearch(getCustName(customer));
+    setIsDropdownOpen(false);
+  };
 
   const handleItemChange = (
     index: number,
-    field: keyof InvoiceItemInput,
+    field: keyof InvoiceItem,
     value: string | number,
   ) => {
-    const updatedItems = [...items];
-    const item = { ...updatedItems[index], [field]: value };
-    if (field === "quantity" || field === "unit_price") {
-      const q = field === "quantity" ? Number(value) : item.quantity;
-      const p = field === "unit_price" ? Number(value) : item.unit_price;
-      item.amount = q * p;
-    }
-    updatedItems[index] = item;
-    setItems(updatedItems);
+    const newItems = [...items];
+    newItems[index] = { ...newItems[index], [field]: value };
+    setItems(newItems);
   };
 
-  const addItemRow = () => {
-    setItems([
-      ...items,
-      {
-        description: "",
-        quantity: 1,
-        unit_price: 0,
-        amount: 0,
-      },
-    ]);
+  const addItem = () => {
+    setItems([...items, { item_name: "", qty: 1, unit_price: 0 }]);
   };
 
-  const removeItemRow = (index: number) => {
+  const removeItem = (index: number) => {
     if (items.length > 1) {
       setItems(items.filter((_, i) => i !== index));
     }
   };
 
-  // Kiraan Subtotal
-  const packageTotal = isPackageMode ? packagePricePerPax * packagePaxCount : 0;
-  const itemsTotal = isPackageMode
-    ? packageTotal
-    : items.reduce((sum, item) => sum + item.amount, 0);
-
-  const subtotal = itemsTotal;
+  const subtotal = items.reduce(
+    (sum, item) =>
+      sum + (Number(item.qty) || 0) * (Number(item.unit_price) || 0),
+    0,
+  );
   const totalAmount = subtotal + Number(deliveryFee);
-  const balanceDue = totalAmount - deposit;
+  const balanceDue = totalAmount - Number(depositAmount);
 
-  // Hantar Invois & Simpan Slug
+  const filteredCustomers = customers.filter(
+    (c) =>
+      getCustName(c).toLowerCase().includes(customerSearch.toLowerCase()) ||
+      getCustPhone(c).includes(customerSearch),
+  );
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedCustomerId) {
-      setErrorMsg("Sila pilih pelanggan terlebih dahulu.");
+    if (!selectedCustomer) {
+      alert("Sila pilih pelanggan.");
       return;
     }
 
     setLoading(true);
-    setErrorMsg(null);
 
-    try {
-      const slug = invoiceNumber.toLowerCase().trim();
+    // Format items_data untuk disimpan ke lajur jsonb dalam jadual invoices
+    const formattedItemsData = items.map((item) => ({
+      item_name: item.item_name || "",
+      description: item.description || "",
+      quantity: Number(item.qty || 1),
+      unit_price: Number(item.unit_price || 0),
+      total_price: Number(item.qty || 1) * Number(item.unit_price || 0),
+    }));
 
-      const { data: invoiceData, error: invoiceError } = await supabase
-        .from("invoices")
-        .insert([
-          {
-            invoice_number: invoiceNumber,
-            slug: slug,
-            title: title,
-            customer_id: selectedCustomerId,
-            issue_date: issueDate,
-            due_date: dueDate,
-            subtotal: subtotal,
-            delivery_fee: Number(deliveryFee),
-            total_amount: totalAmount,
-            deposit_paid: deposit,
-            status: balanceDue <= 0 ? "paid" : "unpaid",
-            notes: notes,
-          },
-        ])
-        .select()
-        .single();
+    // Generate slug rawak untuk capaian invois awam
+    const generatedSlug = `${invoiceNumber.toLowerCase()}-${Math.random().toString(36).substring(2, 7)}`;
 
-      if (invoiceError) throw invoiceError;
+    const invoicePayload = {
+      invoice_number: invoiceNumber,
+      order_id: selectedOrderId ? Number(selectedOrderId) : null,
+      customer_id: selectedCustomer.id,
+      event_date: eventDate || null,
+      invoice_date: invoiceDate,
+      due_date: dueDate,
+      payment_terms: paymentTerms,
+      items_data: formattedItemsData,
+      subtotal: subtotal,
+      delivery_fee: Number(deliveryFee),
+      deposit_paid: Number(depositAmount),
+      total_amount: totalAmount,
+      balance_due: balanceDue,
+      notes: notes,
+      slug: generatedSlug,
+      status:
+        balanceDue <= 0 ? "paid" : depositAmount > 0 ? "partial" : "unpaid",
+    };
 
-      // Simpan item bergantung kepada mod yang dipilih
-      let itemsToInsert = [];
-      if (isPackageMode) {
-        // Dalam mod pakej: Item pertama membawa maklumat harga & pax, manakala item seterusnya berfungsi sebagai senarai perincian paparan sahaja
-        itemsToInsert = items.map((item, idx) => ({
-          invoice_id: invoiceData.id,
-          description: item.description,
-          quantity: idx === 0 ? packagePaxCount : 1,
-          unit_price: idx === 0 ? packagePricePerPax : 0,
-          amount: idx === 0 ? packageTotal : 0,
-        }));
-      } else {
-        itemsToInsert = items.map((item) => ({
-          invoice_id: invoiceData.id,
-          description: item.description,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          amount: item.amount,
-        }));
-      }
+    const { error } = await supabase.from("invoices").insert([invoicePayload]);
 
-      const { error: itemsError } = await supabase
-        .from("invoice_items")
-        .insert(itemsToInsert);
-
-      if (itemsError) throw itemsError;
-
-      const finalSlug = invoiceData.slug || slug;
-      const token = invoiceData.id.slice(0, 8);
-      const generatedLink = `${window.location.origin}/inv/${finalSlug}?token=${token}`;
-
-      setCreatedInvoiceSlug(finalSlug);
-      setCreatedInvoiceToken(token);
-      setCreatedInvoiceUrl(generatedLink);
-    } catch (err: unknown) {
-      const error = err as Error;
-      setErrorMsg(error.message || "Gagal menyimpan invois.");
-    } finally {
+    if (error) {
+      alert("Gagal mencipta invois: " + error.message);
       setLoading(false);
+    } else {
+      router.push("/invoices");
     }
   };
 
-  const handleSendWhatsApp = () => {
-    if (!createdInvoiceUrl) return;
-    let rawPhone = selectedCustomerObj?.phone || "";
-    rawPhone = rawPhone.replace(/\D/g, "");
-    if (rawPhone.startsWith("0")) rawPhone = "60" + rawPhone.slice(1);
-
-    const customerName = selectedCustomerObj?.name || "Pelanggan";
-    const programTitle = title ? `\n📌 *Program/Tujuan:* ${title}` : "";
-
-    // Dapatkan URL domain semasa secara dinamik untuk pautan gambar QR
-    const qrImageUrl = `${window.location.origin}/QR_BIMB_WakMan.jpeg`;
-
-    const message = `Salam ${customerName},\n\nTerima kasih atas pesanan anda. Ini adalah invois bagi rujukan dan bayaran anda:${programTitle}\n\n🗒️ *No. Invois:* ${invoiceNumber}\n💰 *Jumlah:* RM ${totalAmount.toFixed(
-      2,
-    )}\n⏳ *Baki Perlu Dibayar:* RM ${balanceDue.toFixed(
-      2,
-    )}\n\n📄 *Pautan Invois:* \n${createdInvoiceUrl}\n\n🖼️ *Pautan QR Code Pembayaran:* \n${qrImageUrl}\n\n------------------------------\n💳 *MAKLUMAT BANK*\nBank Islam Berhad\nKamaruzaman Bin Zainuddin\n12074010022447`;
-
-    window.open(
-      `https://wa.me/${rawPhone}?text=${encodeURIComponent(message)}`,
-      "_blank",
-    );
-  };
+  const activeOrder = orders.find((o) => String(o.id) === selectedOrderId);
+  const extractedOrderItems = activeOrder
+    ? parseOrderItems(activeOrder.items_data)
+    : [];
 
   return (
-    <main
-      className="min-h-screen bg-cover bg-center bg-no-repeat p-4 sm:p-8 text-slate-800"
-      style={{
-        backgroundImage: "url('/dark_cook_bg.jpg')",
-      }}
-    >
-      <div className="max-w-3xl mx-auto bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
-        <h1 className="text-2xl font-bold text-slate-900 mb-6">
-          Invois Baharu 👇
+    <div className="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
+      <div>
+        <h1 className="text-2xl font-black text-slate-900">
+          Tambah Invois Baharu
         </h1>
+        <p className="text-xs text-slate-500">
+          Jana invois rasmi berasaskan pesanan atau senarai pelanggan.
+        </p>
+      </div>
 
-        {errorMsg && (
-          <div className="mb-6 p-4 bg-red-50 text-red-700 border border-red-200 rounded-lg text-sm">
-            {errorMsg}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* TAJUK INVOIS */}
-          <div className="bg-blue-50/60 p-4 rounded-xl border border-blue-100">
-            <label className="block text-sm font-bold text-slate-800 mb-1">
-              Tajuk / Program / Majlis
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. Katering Majlis Perkahwinan / Jamuan Hari Raya"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">
-                No. Invois (Auto)
-              </label>
-              <input
-                type="text"
-                value={invoiceNumber}
-                readOnly
-                className="w-full p-2.5 border border-slate-200 bg-slate-100 text-slate-800 font-bold rounded-lg outline-none cursor-not-allowed"
-              />
-            </div>
-
-            {/* Carian & Pilihan Pelanggan */}
-            <div className="relative" ref={dropdownRef}>
-              <div className="flex justify-between items-center mb-1">
-                <label className="block text-sm font-semibold text-slate-700">
-                  Pelanggan
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setIsAddCustomerOpen(true)}
-                  className="text-xs font-bold text-blue-600 hover:text-blue-800 underline"
-                >
-                  + Tambah Pelanggan Baharu
-                </button>
-              </div>
-              <input
-                type="text"
-                placeholder="Taip nama atau no. telefon..."
-                value={searchCustomer}
-                onFocus={() => setIsDropdownOpen(true)}
-                onChange={(e) => {
-                  setSearchCustomer(e.target.value);
-                  setSelectedCustomerId("");
-                  setSelectedCustomerObj(null);
-                  setIsDropdownOpen(true);
-                }}
-                className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm"
-              />
-              {isDropdownOpen && (
-                <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
-                  {filteredCustomers.length === 0 ? (
-                    <div className="p-3 text-center text-xs text-slate-500">
-                      Tiada pelanggan ditemui.
-                    </div>
-                  ) : (
-                    filteredCustomers.map((c) => (
-                      <div
-                        key={c.id}
-                        onClick={() => {
-                          setSelectedCustomerId(c.id);
-                          setSelectedCustomerObj(c);
-                          setSearchCustomer(
-                            `${c.name} (${c.phone || "Tiada No"})`,
-                          );
-                          setIsDropdownOpen(false);
-                        }}
-                        className="p-2.5 hover:bg-blue-50 cursor-pointer text-sm border-b border-slate-100"
-                      >
-                        <p className="font-semibold text-slate-800">{c.name}</p>
-                        <p className="text-xs text-slate-500">
-                          {c.phone || "Tiada No. Telefon"}
-                        </p>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">
-                Tarikh Invois
-              </label>
-              <input
-                type="date"
-                value={issueDate}
-                onChange={(e) => setIssueDate(e.target.value)}
-                required
-                className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* KAD RUJUKAN TEMPAHAN */}
+        <div className="lg:col-span-4 sticky top-6 space-y-4">
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">
-                  Tempoh
+                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 block">
+                  Rujukan Tempahan
+                </span>
+                <h2 className="text-sm font-bold text-slate-900">
+                  {activeOrder
+                    ? activeOrder.order_number || `#ORD-${activeOrder.id}`
+                    : "Pilih Order Untuk Rujukan"}
+                </h2>
+              </div>
+              <span
+                className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
+                  activeOrder
+                    ? "bg-blue-50 text-blue-600 border border-blue-100"
+                    : "bg-slate-100 text-slate-500"
+                }`}
+              >
+                {activeOrder ? "Data Ditarik" : "Tiada Order"}
+              </span>
+            </div>
+
+            {activeOrder ? (
+              <>
+                <div className="space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                    Pelanggan
+                  </span>
+                  <p className="text-xs font-bold text-slate-800">
+                    {getCustName(activeOrder.customers)}
+                  </p>
+                  <p className="text-[11px] font-mono text-slate-600">
+                    {getCustPhone(activeOrder.customers)}
+                  </p>
+                </div>
+
+                {activeOrder.event_date && (
+                  <div className="flex justify-between items-center text-xs px-1">
+                    <span className="text-slate-500 font-medium">
+                      Tarikh Majlis:
+                    </span>
+                    <span className="font-bold text-slate-800 font-mono">
+                      {activeOrder.event_date}
+                    </span>
+                  </div>
+                )}
+
+                <div className="space-y-2 border-t border-slate-100 pt-3">
+                  <span className="text-[11px] font-bold text-slate-500 block">
+                    Menu / Barangan Tempahan ({extractedOrderItems.length})
+                  </span>
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                    {extractedOrderItems.length > 0 ? (
+                      extractedOrderItems.map((it, idx) => (
+                        <div
+                          key={idx}
+                          className="flex justify-between items-center text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-100"
+                        >
+                          <span className="truncate max-w-[150px] text-slate-700 font-medium">
+                            {it.item_name || "Barang"}
+                          </span>
+                          <span className="font-mono text-[11px] text-slate-600 font-bold">
+                            {it.qty} x RM {(it.unit_price || 0).toFixed(2)}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-slate-400 italic">
+                        Tiada maklumat item dijumpai.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-100 pt-3 space-y-1.5 text-xs bg-slate-50/50 p-3 rounded-xl">
+                  <div className="flex justify-between text-slate-600">
+                    <span>Jumlah Rekod Order:</span>
+                    <span className="font-mono font-bold text-slate-800">
+                      RM {(Number(activeOrder.total_price) || 0).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-emerald-600 font-medium">
+                    <span>Deposit Rekod Order:</span>
+                    <span className="font-mono font-bold">
+                      RM{" "}
+                      {(
+                        Number(
+                          activeOrder.deposit_paid ||
+                            activeOrder.deposit_amount,
+                        ) || 0
+                      ).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="py-8 text-center text-xs text-slate-400 space-y-2">
+                <p>
+                  Sila pilih nombor order di borang sebelah untuk memuatkan data
+                  tempahan asal di sini.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* BORANG INVOIS */}
+        <div className="lg:col-span-8">
+          <form
+            onSubmit={handleSubmit}
+            className="space-y-6 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Nombor Invois (Automatik)
+                </label>
+                <input
+                  type="text"
+                  value={invoiceNumber}
+                  readOnly
+                  className="w-full text-xs font-mono font-bold px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-slate-600 cursor-not-allowed outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Pilih Nombor Order (Opsional)
                 </label>
                 <select
-                  value={termDays}
-                  onChange={(e) => setTermDays(Number(e.target.value))}
-                  className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm"
+                  value={selectedOrderId}
+                  onChange={(e) => handleOrderSelect(e.target.value)}
+                  className="w-full text-xs font-bold px-3 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
+                >
+                  <option value="">-- Pilih Order (Jika ada) --</option>
+                  {orders.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.order_number || `#ORD-${o.id}`}
+                      {o.customers ? ` - ${getCustName(o.customers)}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-2 border-t border-slate-100">
+              <div className="relative" ref={dropdownRef}>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Nama Pelanggan * {isCustomerLocked && "(Dikunci dari Order)"}
+                </label>
+                <input
+                  type="text"
+                  placeholder="Taip untuk cari nama atau no. telefon pelanggan..."
+                  value={customerSearch}
+                  disabled={isCustomerLocked}
+                  onChange={(e) => {
+                    setCustomerSearch(e.target.value);
+                    setIsDropdownOpen(true);
+                  }}
+                  onFocus={() => !isCustomerLocked && setIsDropdownOpen(true)}
+                  className={`w-full text-xs font-bold px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none ${
+                    isCustomerLocked
+                      ? "bg-slate-100 text-slate-600 cursor-not-allowed"
+                      : "bg-white"
+                  }`}
+                />
+
+                {isDropdownOpen && !isCustomerLocked && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                    {filteredCustomers.length === 0 ? (
+                      <div className="p-3 text-xs text-slate-400">
+                        Tiada pelanggan dijumpai
+                      </div>
+                    ) : (
+                      filteredCustomers.map((c) => (
+                        <div
+                          key={c.id}
+                          onClick={() => handleSelectCustomer(c)}
+                          className="p-2.5 hover:bg-blue-50 cursor-pointer border-b border-slate-100 last:border-none text-xs"
+                        >
+                          <p className="font-bold text-slate-800">
+                            {getCustName(c)}
+                          </p>
+                          <p className="text-[10px] text-slate-500 font-mono">
+                            {getCustPhone(c)}
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-2 border-t border-slate-100">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Tarikh Majlis
+                </label>
+                <input
+                  type="date"
+                  value={eventDate}
+                  onChange={(e) => setEventDate(e.target.value)}
+                  className="w-full text-xs font-medium px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Tarikh Invois
+                </label>
+                <input
+                  type="date"
+                  value={invoiceDate}
+                  onChange={(e) => setInvoiceDate(e.target.value)}
+                  required
+                  className="w-full text-xs font-medium px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Terma (Hari)
+                </label>
+                <select
+                  value={paymentTerms}
+                  onChange={(e) => setPaymentTerms(Number(e.target.value))}
+                  className="w-full text-xs font-bold px-3 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
                 >
                   <option value={7}>7 Hari</option>
                   <option value={14}>14 Hari</option>
                   <option value={30}>30 Hari</option>
+                  <option value={60}>60 Hari</option>
                 </select>
               </div>
+
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">
-                  Tarikh Akhir
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Tarikh Due (Locked)
                 </label>
                 <input
                   type="date"
                   value={dueDate}
                   readOnly
-                  className="w-full p-2.5 border border-slate-200 bg-slate-100 text-slate-600 rounded-lg outline-none cursor-not-allowed font-medium text-sm"
+                  className="w-full text-xs font-medium px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-slate-600 cursor-not-allowed outline-none font-mono"
                 />
               </div>
             </div>
-          </div>
 
-          <hr className="my-6 border-slate-200" />
+            <div className="space-y-3 pt-2 border-t border-slate-100">
+              <label className="block text-xs font-bold text-slate-700">
+                Senarai Barangan / Perkhidmatan Invois
+              </label>
 
-          {/* ITEM SECTION */}
-          <div>
-            <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
-              <h2 className="text-lg font-bold text-slate-800">
-                Item / Senarai Pakej
-              </h2>
-              <div className="flex items-center gap-3">
-                {/* CHECKBOX MOD PAKEJ PER PERSON */}
-                <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-100 transition">
-                  <input
-                    type="checkbox"
-                    checked={isPackageMode}
-                    onChange={(e) => setIsPackageMode(e.target.checked)}
-                    className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
-                  />
-                  Kira mengikut Pakej / Per Person (Pax)
-                </label>
-
-                {/* BUTANG TAMBAH ITEM (SENTIASA AKTIF) */}
-                <button
-                  type="button"
-                  onClick={addItemRow}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg transition"
-                >
-                  + Tambah Item
-                </button>
-              </div>
-            </div>
-
-            {/* KAD KIRAAN PAKEJ PER PERSON (DIPAPARKAN APABILA ISPACKAGEMODE = TRUE) */}
-            {isPackageMode && (
-              <div className="p-4 bg-blue-50/70 rounded-xl border border-blue-200 mb-4 space-y-3">
-                <div className="text-xs font-extrabold text-blue-800 uppercase tracking-wider">
-                  Tetapan Pakej Per Person (Pax)
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Harga / Pax (RM)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={packagePricePerPax}
-                      onChange={(e) =>
-                        setPackagePricePerPax(Number(e.target.value))
-                      }
-                      className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Bilangan Pax
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={packagePaxCount}
-                      onChange={(e) =>
-                        setPackagePaxCount(Number(e.target.value))
-                      }
-                      className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div className="sm:text-right pt-2 sm:pt-4">
-                    <span className="block text-[10px] text-slate-500 font-bold uppercase">
-                      Jumlah Pakej
-                    </span>
-                    <span className="text-base font-black text-blue-900">
-                      RM {packageTotal.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* SENARAI ITEM */}
-            <div className="space-y-4">
               {items.map((item, index) => (
-                <div
-                  key={index}
-                  className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3"
-                >
-                  <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                    <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">
-                      {isPackageMode
-                        ? `Menu / Lauk #${index + 1}`
-                        : `Item #${index + 1}`}
-                    </span>
-                    {items.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeItemRow(index)}
-                        className="text-xs font-bold text-rose-500 hover:underline"
-                      >
-                        Padam
-                      </button>
-                    )}
-                  </div>
-
-                  {isPackageMode ? (
-                    /* SUSUNAN MOD PAKEJ (SEKADAR PAPARAN LIST MENU) */
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">
-                        Penerangan Menu / Lauk / Item Paparan
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Contoh: Ayam Panggang / Air Sirap / Set Buah-Buahan"
-                        value={item.description}
-                        onChange={(e) =>
-                          handleItemChange(index, "description", e.target.value)
-                        }
-                        required
-                        className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                      />
-                    </div>
-                  ) : (
-                    /* SUSUNAN MOD STANDARD / BIASA */
-                    <div className="flex flex-col md:flex-row gap-3 items-start">
-                      <div className="flex-1 w-full">
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">
-                          Penerangan Item
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="Contoh: Ayam Panggang Seekor"
-                          value={item.description}
-                          onChange={(e) =>
-                            handleItemChange(
-                              index,
-                              "description",
-                              e.target.value,
-                            )
-                          }
-                          required
-                          className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                        />
-                      </div>
-
-                      <div className="w-full md:w-28">
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">
-                          Kuantiti
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={item.quantity}
-                          onChange={(e) =>
-                            handleItemChange(index, "quantity", e.target.value)
-                          }
-                          required
-                          className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm font-bold text-slate-800 outline-none"
-                        />
-                      </div>
-
-                      <div className="w-full md:w-32">
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">
-                          Harga Unit (RM)
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={item.unit_price}
-                          onChange={(e) =>
-                            handleItemChange(
-                              index,
-                              "unit_price",
-                              e.target.value,
-                            )
-                          }
-                          required
-                          className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm font-bold text-slate-800 outline-none"
-                        />
-                      </div>
-
-                      <div className="w-full md:w-28 text-right pt-2 md:pt-6">
-                        <span className="block text-[10px] text-slate-400 font-bold uppercase">
-                          Jumlah
-                        </span>
-                        <span className="text-sm font-black text-slate-900">
-                          RM {item.amount.toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
+                <div key={index} className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    placeholder="Nama Perkhidmatan / Menu"
+                    value={item.item_name || ""}
+                    onChange={(e) =>
+                      handleItemChange(index, "item_name", e.target.value)
+                    }
+                    required
+                    className="flex-1 text-xs px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="Kuantiti"
+                    value={item.qty || 1}
+                    onChange={(e) =>
+                      handleItemChange(index, "qty", Number(e.target.value))
+                    }
+                    required
+                    className="w-20 text-xs px-3 py-2 border border-slate-200 rounded-xl text-center focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Harga Unit (RM)"
+                    value={item.unit_price || 0}
+                    onChange={(e) =>
+                      handleItemChange(
+                        index,
+                        "unit_price",
+                        Number(e.target.value),
+                      )
+                    }
+                    required
+                    className="w-28 text-xs px-3 py-2 border border-slate-200 rounded-xl text-right focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                  <span className="w-24 text-right text-xs font-mono font-bold text-slate-700">
+                    RM {((item.qty || 0) * (item.unit_price || 0)).toFixed(2)}
+                  </span>
+                  {items.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeItem(index)}
+                      className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl text-xs transition cursor-pointer"
+                    >
+                      ✕
+                    </button>
                   )}
                 </div>
               ))}
-            </div>
-          </div>
 
-          {/* KAD CAS PENGHANTARAN (TERASING) */}
-          <div className="p-4 bg-amber-50/60 rounded-xl border border-amber-200 space-y-2">
-            <div className="flex justify-between items-center">
-              <label className="block text-xs font-extrabold text-amber-900 uppercase tracking-wider">
-                🚚 Cas Penghantaran (Delivery Fee)
-              </label>
-              <span className="text-xs text-amber-700 font-semibold">
-                Kad Terasing
-              </span>
+              <button
+                type="button"
+                onClick={addItem}
+                className="mt-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer"
+              >
+                + Tambah Barangan
+              </button>
             </div>
-            <div className="flex items-center gap-3">
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="0.00"
-                value={deliveryFee}
-                onChange={(e) => setDeliveryFee(Number(e.target.value))}
-                className="w-full md:w-48 p-2.5 bg-white border border-amber-300 rounded-lg text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-amber-500"
-              />
-              <span className="text-xs text-slate-500">
-                Langkan 0 jika tiada cas penghantaran.
-              </span>
-            </div>
-          </div>
 
-          <hr className="my-6 border-slate-200" />
-
-          {/* DEPOSIT & NOTA */}
-          <div className="flex flex-col md:flex-row justify-between items-start gap-6">
-            <div className="w-full md:w-1/2">
-              <label className="block text-sm font-semibold text-slate-700 mb-1">
-                Nota / Terma Bayaran
-              </label>
-              <textarea
-                rows={4}
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none bg-white"
-              />
-            </div>
-            <div className="w-full md:w-1/2 bg-slate-50 p-4 rounded-xl border border-slate-200 text-right space-y-3">
-              <div className="flex justify-between text-slate-600 text-sm">
-                <span>Subtotal Item:</span>
-                <span>RM {subtotal.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-slate-600 text-sm">
-                <span>Cas Penghantaran:</span>
-                <span>RM {Number(deliveryFee).toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-600 font-medium">
-                  Deposit / Pendahuluan:
-                </span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Cas Penghantaran (RM) - Opsional
+                </label>
                 <input
                   type="number"
                   step="0.01"
-                  min="0"
-                  value={deposit}
-                  onChange={(e) => setDeposit(Number(e.target.value))}
-                  className="w-32 p-1.5 text-right border border-slate-300 rounded font-semibold bg-white"
+                  placeholder="0.00"
+                  value={deliveryFee || ""}
+                  onChange={(e) => setDeliveryFee(Number(e.target.value))}
+                  className="w-full text-xs font-mono font-bold px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
-              <div className="flex justify-between text-slate-900 font-bold text-base pt-2 border-t border-slate-300">
-                <span>Jumlah Invois:</span>
-                <span>RM {totalAmount.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-blue-600 font-extrabold text-lg pt-1">
-                <span>Baki Perlu Dibayar:</span>
-                <span>RM {balanceDue.toFixed(2)}</span>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Jumlah Deposit / Bayaran Awal (RM)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={depositAmount || ""}
+                  onChange={(e) => setDepositAmount(Number(e.target.value))}
+                  className="w-full text-xs font-mono font-bold px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                />
               </div>
             </div>
-          </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition disabled:bg-slate-400 cursor-pointer"
-          >
-            {loading ? "Sedang Menyimpan..." : "Simpan Invois & Dapatkan Link"}
-          </button>
-        </form>
+            <div className="pt-4 border-t border-slate-100 flex flex-col md:flex-row justify-between gap-4">
+              <div className="flex-1">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Nota / Terma Bayaran (Opsional)
+                </label>
+                <textarea
+                  rows={4}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Contoh: Sila buat pembayaran ke akaun bank Maybank/CIMB..."
+                  className="w-full text-xs p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              <div className="w-full md:w-72 bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-xs">
+                <div className="flex justify-between text-slate-600">
+                  <span>Subtotal:</span>
+                  <span className="font-mono font-bold">
+                    RM {subtotal.toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-slate-600">
+                  <span>Cas Penghantaran:</span>
+                  <span className="font-mono font-bold">
+                    RM {Number(deliveryFee).toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between font-bold text-slate-900 border-t border-slate-200 pt-2">
+                  <span>Jumlah Keseluruhan:</span>
+                  <span className="font-mono">RM {totalAmount.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-emerald-600">
+                  <span>Deposit Dibayar:</span>
+                  <span className="font-mono font-bold">
+                    - RM {Number(depositAmount).toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-base font-black text-blue-600 border-t border-slate-200 pt-2">
+                  <span>Baki Tuntut:</span>
+                  <span className="font-mono">RM {balanceDue.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => router.back()}
+                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition disabled:opacity-50 cursor-pointer"
+              >
+                {loading ? "Menyimpan..." : "Simpan Invois"}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
-
-      {/* MODAL POPUP: TAMBAH PELANGGAN BAHARU */}
-      {isAddCustomerOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 border border-slate-100">
-            <div className="border-b border-slate-100 pb-3">
-              <h3 className="text-lg font-bold text-slate-900">
-                Tambah Pelanggan Baharu
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Isi maklumat pelanggan di bawah untuk disimpan ke dalam sistem.
-              </p>
-            </div>
-
-            <form onSubmit={handleCreateCustomer} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Nama Pelanggan / Syarikat{" "}
-                  <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Contoh: Ahmad Albab / ABC Trading"
-                  value={newCustomerName}
-                  onChange={(e) => setNewCustomerName(e.target.value)}
-                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Nombor Telefon
-                </label>
-                <input
-                  type="text"
-                  placeholder="Contoh: 0123456789"
-                  value={newCustomerPhone}
-                  onChange={(e) => setNewCustomerPhone(e.target.value)}
-                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Alamat Baris 1
-                </label>
-                <input
-                  type="text"
-                  placeholder="Contoh: No. 12, Jalan Bunga Raya"
-                  value={newCustomerAddress1}
-                  onChange={(e) => setNewCustomerAddress1(e.target.value)}
-                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Alamat Baris 2
-                </label>
-                <input
-                  type="text"
-                  placeholder="Contoh: Taman Merdeka, 42700 Banting, Selangor"
-                  value={newCustomerAddress2}
-                  onChange={(e) => setNewCustomerAddress2(e.target.value)}
-                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition"
-                />
-              </div>
-
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsAddCustomerOpen(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingCustomer}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-xs font-bold rounded-xl shadow transition flex items-center gap-2"
-                >
-                  {savingCustomer ? "Menyimpan..." : "Simpan Pelanggan"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL POPUP: KEJAYAAN INVOIS */}
-      {createdInvoiceUrl && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 text-center border border-slate-100">
-            <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto text-2xl font-bold">
-              ✓
-            </div>
-            <h3 className="text-xl font-bold text-slate-900">
-              Invois Berjaya Dicipta!
-            </h3>
-            <button
-              onClick={handleSendWhatsApp}
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <span>📲</span> Hantar ke WhatsApp
-            </button>
-            <div className="p-3 bg-slate-50 rounded-lg flex items-center justify-between border border-slate-200">
-              <span className="text-xs text-slate-600 truncate mr-2">
-                {createdInvoiceUrl}
-              </span>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(createdInvoiceUrl);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 2000);
-                }}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold rounded transition"
-              >
-                {copied ? "Tersalin!" : "Salin Link"}
-              </button>
-            </div>
-            <div className="flex gap-2 pt-2">
-              <button
-                onClick={() => {
-                  if (createdInvoiceSlug) {
-                    router.push(
-                      `/inv/${createdInvoiceSlug}?token=${createdInvoiceToken}`,
-                    );
-                  }
-                }}
-                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition"
-              >
-                Lihat Invois
-              </button>
-              <button
-                onClick={() => setCreatedInvoiceUrl(null)}
-                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-lg transition"
-              >
-                Tutup
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </main>
+    </div>
   );
 }

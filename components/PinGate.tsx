@@ -2,111 +2,124 @@
 
 import { useState, useEffect } from "react";
 
-// Tentukan 6-digit PIN anda di sini
-const CORRECT_PIN = "123456";
+interface PinGateProps {
+  children: React.ReactNode;
+}
 
-export default function PinGate({ children }: { children: React.ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [pin, setPin] = useState<string>("");
-  const [error, setError] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+// Tukar PIN keselamatan anda di sini (atau guna environment variable)
+const ADMIN_PIN = process.env.NEXT_PUBLIC_ADMIN_PIN || "1234";
 
-  // Semak status akses terdahulu dari LocalStorage
+export default function PinGate({ children }: PinGateProps) {
+  const [pin, setPin] = useState("");
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [error, setError] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Semak status pengesahan daripada sessionStorage semasa halaman dimuatkan
   useEffect(() => {
-    const authStatus = localStorage.getItem("wm_app_auth");
-    if (authStatus === "true") {
+    const savedAuth = sessionStorage.getItem("admin_authenticated");
+    if (savedAuth === "true") {
       setIsAuthenticated(true);
     }
-    setIsLoading(false);
+    setLoading(false);
   }, []);
 
-  const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\D/g, ""); // Hanya benarkan nombor
-    if (value.length <= 6) {
-      setPin(value);
-      setError(false);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
 
-      // Semak automatik sebaik sahaja 6 digit dimasukkan
-      if (value.length === 6) {
-        if (value === CORRECT_PIN) {
-          localStorage.setItem("wm_app_auth", "true");
-          setIsAuthenticated(true);
-        } else {
-          setError(true);
-          setTimeout(() => setPin(""), 400); // Reset pin jika salah
-        }
-      }
+    if (pin === ADMIN_PIN) {
+      sessionStorage.setItem("admin_authenticated", "true");
+      setIsAuthenticated(true);
+      setError(false);
+    } else {
+      setError(true);
+      setPin("");
     }
   };
 
-  if (isLoading) {
+  const handleLogout = () => {
+    sessionStorage.removeItem("admin_authenticated");
+    setIsAuthenticated(false);
+  };
+
+  // Paparan sementara semasa menyemak sesi
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-400 text-xs font-semibold">
-        Memuatkan...
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <p className="text-xs text-gray-400 animate-pulse">
+          Menyemak akses keselamatan...
+        </p>
       </div>
     );
   }
 
-  // Jika belum disahkan, paparkan Pop-up PIN Modal
-  if (!isAuthenticated) {
+  // Jika PIN betul, paparkan kandungan asal sistem
+  if (isAuthenticated) {
     return (
-      <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4">
-        <div className="bg-white rounded-3xl max-w-sm w-full p-8 shadow-2xl text-center border border-slate-100 space-y-6">
-          {/* Ikon & Ucapan */}
-          <div className="space-y-2">
-            <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto text-2xl shadow-inner">
-              🔒
-            </div>
-            <h2 className="text-xl font-black text-slate-900 tracking-tight">
-              Hai Assalamualaikum
-              <br />
-              Wak Man & Family
-            </h2>
-            <p className="text-xs text-slate-500 font-medium">
-              Sila Masukkan 6 digit kata laluan di bawah
-            </p>
-          </div>
+      <div className="relative">
+        {/* Butang Log Keluar Khas (Pilihan tambahan) */}
+        <button
+          onClick={handleLogout}
+          className="fixed top-3 right-3 z-50 text-[10px] bg-red-50 hover:bg-red-100 text-red-600 font-bold px-2.5 py-1 rounded-lg border border-red-200 transition"
+          title="Kunci Semula Admin"
+        >
+          🔒 Kunci Sistem
+        </button>
+        {children}
+      </div>
+    );
+  }
 
-          {/* Kotak Input PIN */}
-          <div className="relative max-w-[240px] mx-auto">
+  // Jika belum disahkan, paparkan skrin kunci PIN
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="bg-white p-6 md:p-8 rounded-2xl border border-gray-200 shadow-md max-w-sm w-full text-center space-y-5">
+        <div className="w-12 h-12 bg-amber-50 border border-amber-200 rounded-full flex items-center justify-center mx-auto text-xl">
+          🔐
+        </div>
+
+        <div>
+          <h2 className="text-lg font-bold text-gray-800">
+            Akses Pentadbir WakMan
+          </h2>
+          <p className="text-xs text-gray-500 mt-1">
+            Masukkan PIN 4-digit keselamatan untuk meneruskan
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
             <input
               type="password"
-              inputMode="numeric"
               maxLength={6}
               value={pin}
-              onChange={handlePinChange}
+              onChange={(e) => {
+                setError(false);
+                setPin(e.target.value);
+              }}
+              placeholder="****"
+              className="w-full text-center text-2xl font-mono tracking-widest py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none"
               autoFocus
-              className="w-full text-center text-3xl font-black tracking-[0.6em] py-3.5 px-4 bg-slate-50 border-2 border-slate-200 rounded-2xl focus:border-blue-600 focus:bg-white focus:outline-none transition-all text-slate-800"
             />
+            {error && (
+              <p className="text-xs text-red-500 font-semibold mt-2">
+                ⚠️ PIN tidak sah. Sila cuba lagi.
+              </p>
+            )}
           </div>
 
-          {/* Indikator Titik (Dot Display) */}
-          <div className="flex justify-center gap-3">
-            {[...Array(6)].map((_, i) => (
-              <div
-                key={i}
-                className={`w-3.5 h-3.5 rounded-full transition-all duration-200 ${
-                  i < pin.length
-                    ? error
-                      ? "bg-rose-500 scale-110"
-                      : "bg-blue-600 scale-110"
-                    : "bg-slate-200"
-                }`}
-              />
-            ))}
-          </div>
+          <button
+            type="submit"
+            className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-sm transition"
+          >
+            Luluskan Akses
+          </button>
+        </form>
 
-          {/* Mesej Ralat */}
-          {error && (
-            <p className="text-xs font-bold text-rose-500 animate-bounce">
-              Kata laluan salah! Sila cuba lagi.
-            </p>
-          )}
-        </div>
+        <p className="text-[10px] text-gray-400">
+          Sistem Kawalan Dalaman WakMan Catering
+        </p>
       </div>
-    );
-  }
-
-  // Jika PIN betul, paparkan keseluruhan sistem
-  return <>{children}</>;
+    </div>
+  );
 }

@@ -1,37 +1,44 @@
 "use client";
 
 import { useEffect, useState, use } from "react";
-import { useSearchParams } from "next/navigation";
+import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 
+interface CustomerData {
+  customer_name: string;
+  customer_phone: string;
+  address1: string | null;
+  address2: string | null;
+}
+
 interface InvoiceItem {
-  id: string;
-  description: string;
-  quantity: number;
-  unit_price: number;
-  amount: number;
+  id?: number | string;
+  item_name?: string;
+  name?: string;
+  description?: string | null;
+  quantity?: number;
+  qty?: number;
+  unit_price?: number;
+  price?: number;
+  total_price?: number;
+  amount?: number;
 }
 
-interface Customer {
-  name: string;
-  phone: string;
-  address_1?: string;
-  address_2?: string;
-}
-
-interface Invoice {
-  id: string;
+interface PublicInvoiceData {
+  id: number;
   invoice_number: string;
-  title?: string;
-  issue_date: string;
-  due_date: string;
-  subtotal: number;
+  slug: string | null;
+  invoice_date: string | null;
+  due_date: string | null;
   total_amount: number;
   deposit_paid: number;
+  balance_due?: number;
+  balanced_due?: number;
   status: string;
-  notes?: string;
-  customers: Customer | null;
-  invoice_items: InvoiceItem[];
+  notes: string | null;
+  items_data: InvoiceItem[] | null;
+  customer_id?: number | null;
+  customers: CustomerData | null;
 }
 
 export default function PublicInvoicePage({
@@ -40,379 +47,355 @@ export default function PublicInvoicePage({
   params: Promise<{ slug: string }>;
 }) {
   const resolvedParams = use(params);
-  const rawSlug = resolvedParams.slug;
+  const slugParam = resolvedParams.slug;
 
-  // Ambil parameter ?token= daripada URL
-  const searchParams = useSearchParams();
-  const token = searchParams.get("token");
-
-  const [invoice, setInvoice] = useState<Invoice | null>(null);
+  const [invoice, setInvoice] = useState<PublicInvoiceData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchInvoice() {
-      try {
-        setLoading(true);
-        setError(null);
+    if (slugParam) {
+      fetchPublicInvoice();
+    }
+  }, [slugParam]);
 
-        // 1. Semak jika token wujud dalam URL
-        if (!token) {
-          setError("Pautan invois tidak sah atau token keselamatan tiada.");
-          return;
-        }
+  const fetchPublicInvoice = async () => {
+    setLoading(true);
+    setErrorMessage(null);
 
-        let { data, error: fetchError } = await supabase
-          .from("invoices")
-          .select(
-            `
-            id,
-            invoice_number,
-            title,
-            issue_date,
-            due_date,
-            subtotal,
-            total_amount,
-            deposit_paid,
-            status,
-            notes,
-            customers (
-              name,
-              phone,
-              address_1,
-              address_2
-            ),
-            invoice_items (
-              id,
-              description,
-              quantity,
-              unit_price,
-              amount
-            )
-          `,
-          )
-          .eq("slug", rawSlug)
-          .maybeSingle();
+    try {
+      // 1. Ambil data invois sahaja dahulu untuk mengelakkan ralat 'embed/relationship' Supabase
+      let query = supabase.from("invoices").select("*");
 
-        if (!data && !fetchError) {
-          const { data: fallbackData, error: fallbackError } = await supabase
-            .from("invoices")
-            .select(
-              `
-              id,
-              invoice_number,
-              title,
-              issue_date,
-              due_date,
-              subtotal,
-              total_amount,
-              deposit_paid,
-              status,
-              notes,
-              customers (
-                name,
-                phone,
-                address_1,
-                address_2
-              ),
-              invoice_items (
-                id,
-                description,
-                quantity,
-                unit_price,
-                amount
-              )
-            `,
-            )
-            .ilike("invoice_number", rawSlug)
-            .maybeSingle();
-
-          data = fallbackData;
-          fetchError = fallbackError;
-        }
-
-        if (fetchError) {
-          throw new Error(`Ralat Supabase: ${fetchError.message}`);
-        }
-
-        if (!data) {
-          setError(`Invois "${rawSlug}" tidak ditemui.`);
-          return;
-        }
-
-        // 2. Semakan Keselamatan Token: Extract 8 aksara pertama daripada id
-        const expectedToken = data.id.slice(0, 8);
-        if (token !== expectedToken) {
-          setError("Token keselamatan tidak sah untuk invois ini.");
-          return;
-        }
-
-        setInvoice(data as unknown as Invoice);
-      } catch (err: unknown) {
-        const errorMsg = err as Error;
-        setError(errorMsg.message || "Ralat berlaku semasa memuatkan invois.");
-      } finally {
-        setLoading(false);
+      const isNumeric = /^\d+$/.test(slugParam);
+      if (isNumeric) {
+        query = query.or(
+          `id.eq.${slugParam},invoice_number.eq.${slugParam},slug.eq.${slugParam}`,
+        );
+      } else {
+        query = query.or(`slug.eq.${slugParam},invoice_number.eq.${slugParam}`);
       }
-    }
 
-    if (rawSlug) {
-      fetchInvoice();
-    }
-  }, [rawSlug, token]);
+      const { data: invData, error: invError } = await query.single();
+      if (invError || !invData) throw invError;
 
-  // Fungsi Cetak
+      // 2. Ambil data pelanggan secara berasingan sekiranya customer_id wujud
+      let customerData: CustomerData | null = null;
+      if (invData.customer_id) {
+        const { data: custData } = await supabase
+          .from("customers")
+          .select("customer_name, customer_phone, address1, address2")
+          .eq("id", invData.customer_id)
+          .single();
+
+        if (custData) {
+          customerData = custData as CustomerData;
+        }
+      }
+
+      // 3. Gabungkan maklumat invois bersama data pelanggan
+      setInvoice({
+        ...invData,
+        customers: customerData,
+      } as PublicInvoiceData);
+    } catch (err: any) {
+      console.error(
+        "Ralat carian invois awam:",
+        err?.message || err?.details || JSON.stringify(err),
+      );
+      setErrorMessage("Invois tidak dijumpai atau pautan ini tidak lagi sah.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handlePrint = () => {
     window.print();
   };
 
-  // Fungsi Muat Turun PDF
-  const handleSavePDF = () => {
-    const originalTitle = document.title;
-    document.title = invoice?.invoice_number
-      ? `Invois-${invoice.invoice_number}`
-      : "Invois";
-    window.print();
-    document.title = originalTitle;
+  const formatRM = (val: number) => {
+    return new Intl.NumberFormat("ms-MY", {
+      style: "currency",
+      currency: "MYR",
+    }).format(val || 0);
+  };
+
+  const getStatusBadge = (st: string) => {
+    switch (st?.toLowerCase()) {
+      case "paid":
+        return "bg-emerald-50 text-emerald-700 border-emerald-200";
+      case "partial":
+      case "partially_paid":
+        return "bg-blue-50 text-blue-700 border-blue-200";
+      case "unpaid":
+      case "pending":
+        return "bg-amber-50 text-amber-700 border-amber-200";
+      case "overdue":
+      case "cancelled":
+        return "bg-rose-50 text-rose-700 border-rose-200";
+      default:
+        return "bg-slate-100 text-slate-700 border-slate-200";
+    }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 text-slate-500">
-        <div className="flex items-center gap-2 font-medium text-sm">
-          <span className="animate-spin text-lg">⏳</span> Sedang memuatkan
-          invois...
-        </div>
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-xs text-slate-400 space-y-3">
+        <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        <p>Sedang memuatkan paparan invois...</p>
       </div>
     );
   }
 
-  if (error || !invoice) {
+  if (errorMessage || !invoice) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 text-center max-w-md w-full shadow-sm space-y-4">
-          <div className="text-4xl">🔒</div>
-          <h2 className="text-lg font-bold text-slate-900">Capaian Ditolak</h2>
-          <p className="text-slate-600 text-xs leading-relaxed">
-            {error ||
-              "Anda tidak mempunyai kebenaran untuk melihat invois ini."}
-          </p>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+        <div className="bg-white p-8 rounded-2xl border border-slate-200 max-w-md w-full text-center space-y-4 shadow-sm">
+          <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto font-bold text-lg">
+            !
+          </div>
+          <h1 className="text-base font-bold text-slate-900">
+            Dokumen Tidak Dijumpai
+          </h1>
+          <p className="text-xs text-slate-500">{errorMessage}</p>
         </div>
       </div>
     );
   }
 
-  const balanceDue = invoice.total_amount - (invoice.deposit_paid || 0);
-  const isPaid = invoice.status === "paid" || balanceDue <= 0;
+  const totalAmount = Number(invoice.total_amount) || 0;
+  const paidAmount = Number(invoice.deposit_paid) || 0;
+  const balanceDue =
+    Number(invoice.balance_due ?? invoice.balanced_due) ??
+    Math.max(0, totalAmount - paidAmount);
+
+  // Normalisasi items_data (JSONB)
+  const itemsList = Array.isArray(invoice.items_data) ? invoice.items_data : [];
 
   return (
-    <main className="min-h-screen bg-slate-100/70 p-4 sm:p-8 text-slate-800 flex flex-col items-center justify-start print:bg-white print:p-0">
-      {/* BAR BUTANG TINDAKAN (TIDAK DICETAK) */}
-      <div className="max-w-2xl w-full mb-4 flex justify-between items-center print:hidden">
-        <span className="text-xs font-semibold text-slate-400">
-          Paparan Pelanggan
-        </span>
+    <div className="min-h-screen bg-slate-100/70 py-8 px-4 sm:px-6 print:bg-white print:p-0">
+      <div className="max-w-3xl mx-auto space-y-4">
+        {/* BAR TINDAKAN (Disorokkan semasa cetak) */}
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm print:hidden">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-600">
+              Status Bayaran:
+            </span>
+            <span
+              className={`px-3 py-1 border rounded-full text-[10px] font-bold uppercase tracking-wider ${getStatusBadge(
+                invoice.status,
+              )}`}
+            >
+              {invoice.status}
+            </span>
+          </div>
 
-        {/* KUMPULAN BUTANG */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleSavePDF}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-2 cursor-pointer"
-          >
-            📥 Simpan / Muat Turun PDF
-          </button>
-
-          <button
-            onClick={handlePrint}
-            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-2 cursor-pointer"
-          >
-            🖨️ Cetak
-          </button>
-        </div>
-      </div>
-
-      {/* DOKUMEN INVOIS */}
-      <div className="bg-white max-w-2xl w-full p-6 sm:p-10 rounded-2xl shadow-sm border border-slate-200/80 space-y-6 print:shadow-none print:border-none print:p-0">
-        {/* HEADER SYARIKAT */}
-        <div className="border-b border-slate-100 pb-5 flex items-center gap-4">
-          <img
-            src="/favicon.svg"
-            alt="Logo Syarikat"
-            className="w-16 h-16 object-contain shrink-0"
-          />
-
-          <div className="space-y-0.5">
-            <h2 className="text-xl font-black text-slate-900 tracking-tight">
-              KAMARUZAMAN ZAINUDDIN
-            </h2>
-            <p className="text-xs font-semibold text-slate-600">
-              No. SSM: 202103208150 (CT0091538-M)
-            </p>
-            <p className="text-xs text-slate-500">
-              Banting/Klang/Sepang, Selangor
-            </p>
-            <p className="text-xs text-slate-500 font-medium">
-              Wak Man: 019-6456542 | Naim: 019-9147010
-            </p>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              onClick={handlePrint}
+              className="w-full sm:w-auto px-4 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 active:scale-95 rounded-xl transition shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>🖨️</span> Cetak / Simpan PDF
+            </button>
           </div>
         </div>
 
-        {/* TAJUK INVOIS & TARIKH */}
-        <div className="flex justify-between items-start border-b border-slate-100 pb-4">
-          <div className="space-y-1">
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-              INVOIS
-            </h1>
-            <p className="text-sm font-extrabold text-blue-600">
-              {invoice.invoice_number}
-            </p>
-            <div className="pt-1">
-              <span
-                className={`inline-block px-3 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                  isPaid
-                    ? "bg-emerald-100 text-emerald-800"
-                    : "bg-amber-100 text-amber-800"
-                }`}
-              >
-                {isPaid ? "SUDAH DIBAYAR (PAID)" : "BELUM BAYAR (UNPAID)"}
-              </span>
-            </div>
-          </div>
-
-          <div className="text-right text-xs space-y-1 text-slate-600 pt-1">
-            <p>
-              <span className="font-semibold text-slate-700">
-                Tarikh Issue:
-              </span>{" "}
-              {invoice.issue_date}
-            </p>
-            {invoice.due_date && (
-              <p>
-                <span className="font-semibold text-slate-700">
-                  Tarikh Akhir (Due):
-                </span>{" "}
-                {invoice.due_date}
+        {/* KAD DOKUMEN INVOIS */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-10 shadow-sm space-y-8 print:border-none print:shadow-none print:p-0 print:rounded-none">
+          {/* Header Utama */}
+          <div className="flex flex-col sm:flex-row justify-between items-start gap-6 border-b border-slate-100 pb-6">
+            <div className="space-y-1">
+              <h2 className="text-lg font-black text-slate-900 tracking-tight">
+                AYAM PANGGANG CATERING
+              </h2>
+              <p className="text-xs text-slate-500">
+                Perkhidmatan Katering & Tempahan Acara
               </p>
-            )}
-          </div>
-        </div>
-
-        {/* PROGRAM / PERKARA */}
-        {invoice.title && (
-          <div className="text-xs space-y-0.5 bg-slate-50 p-3 rounded-xl border border-slate-100">
-            <p className="font-bold text-slate-400 uppercase tracking-wider text-[10px]">
-              PERKARA / PROGRAM:
-            </p>
-            <p className="font-bold text-slate-800 text-sm">{invoice.title}</p>
-          </div>
-        )}
-
-        {/* PELANGGAN */}
-        <div className="text-xs space-y-1">
-          <p className="font-bold text-slate-400 uppercase tracking-wider text-[10px]">
-            KEPADA PELANGGAN:
-          </p>
-          <p className="font-bold text-slate-900 text-sm">
-            {invoice.customers?.name || "Pelanggan Umum"}
-          </p>
-          {invoice.customers?.phone && (
-            <p className="text-slate-600 font-medium">
-              {invoice.customers.phone}
-            </p>
-          )}
-          {invoice.customers?.address_1 && (
-            <p className="text-slate-600">{invoice.customers.address_1}</p>
-          )}
-          {invoice.customers?.address_2 && (
-            <p className="text-slate-600">{invoice.customers.address_2}</p>
-          )}
-        </div>
-
-        {/* JADUAL ITEM */}
-        <div className="overflow-x-auto pt-2">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="border-y border-slate-200 text-slate-500 uppercase font-bold tracking-wider text-[10px] bg-slate-50/50">
-                <th className="py-2.5 px-3">DESKRIPSI ITEM</th>
-                <th className="py-2.5 px-3 text-center">KUANTITI</th>
-                <th className="py-2.5 px-3 text-right">HARGA UNIT (RM)</th>
-                <th className="py-2.5 px-3 text-right">JUMLAH (RM)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
-              {invoice.invoice_items && invoice.invoice_items.length > 0 ? (
-                invoice.invoice_items.map((item) => (
-                  <tr key={item.id}>
-                    <td className="py-3 px-3 font-medium text-slate-800">
-                      {item.description}
-                    </td>
-                    <td className="py-3 px-3 text-center">{item.quantity}</td>
-                    <td className="py-3 px-3 text-right">
-                      {Number(item.unit_price).toFixed(2)}
-                    </td>
-                    <td className="py-3 px-3 text-right font-bold text-slate-900">
-                      {Number(item.amount).toFixed(2)}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={4} className="py-4 text-center text-slate-400">
-                    Tiada item direkodkan.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* NOTA & RINGKASAN KEWANGAN */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2 items-start">
-          {/* BAHAGIAN NOTA DENGAN BACKGROUND SLATE NIPIS */}
-          <div className="text-xs space-y-1 bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/80">
-            <p className="font-bold text-slate-400 uppercase tracking-wider text-[10px]">
-              NOTA:
-            </p>
-            <p className="text-slate-700 whitespace-pre-line leading-relaxed font-normal">
-              {invoice.notes || "Terima kasih atas urus niaga anda."}
-            </p>
-          </div>
-
-          <div className="space-y-2 text-xs border-t sm:border-t-0 pt-4 sm:pt-0">
-            <div className="flex justify-between text-slate-600">
-              <span>Subtotal:</span>
-              <span className="font-semibold">
-                RM {Number(invoice.subtotal || invoice.total_amount).toFixed(2)}
-              </span>
+              <p className="text-xs font-mono text-slate-500">
+                Hubungi: +60 12-345 6789
+              </p>
             </div>
 
-            {Number(invoice.deposit_paid) > 0 && (
-              <div className="flex justify-between text-emerald-600 font-medium">
-                <span>Deposit Paid:</span>
-                <span>- RM {Number(invoice.deposit_paid).toFixed(2)}</span>
+            <div className="sm:text-right space-y-1">
+              <h1 className="text-2xl font-black uppercase text-blue-600 tracking-wider">
+                INVOIS
+              </h1>
+              <p className="text-xs font-mono font-bold text-slate-800">
+                #{invoice.invoice_number}
+              </p>
+              <div className="text-[11px] text-slate-500 pt-1 space-y-0.5">
+                <p>
+                  <strong className="text-slate-700">Tarikh Invois:</strong>{" "}
+                  {invoice.invoice_date || "-"}
+                </p>
+                <p>
+                  <strong className="text-slate-700">Tarikh Matang:</strong>{" "}
+                  {invoice.due_date || "-"}
+                </p>
               </div>
-            )}
-
-            <div className="flex justify-between font-bold text-slate-900 text-sm pt-2 border-t border-slate-200">
-              <span>Jumlah Invois:</span>
-              <span>RM {Number(invoice.total_amount).toFixed(2)}</span>
-            </div>
-
-            <div className="flex justify-between items-center font-black text-slate-900 text-sm pt-1">
-              <span>Baki Perlu Dibayar:</span>
-              <span className="text-blue-600">
-                RM {balanceDue > 0 ? balanceDue.toFixed(2) : "0.00"}
-              </span>
             </div>
           </div>
-        </div>
 
-        {/* NOTA KAKI */}
-        <div className="pt-6 border-t border-slate-100 text-center text-[11px] text-slate-400">
-          Invois ini dijana secara komputer. Tidak memerlukan tandatangan.
-          Terima kasih atas urus niaga anda.
+          {/* Maklumat Pelanggan */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-xs bg-slate-50/50 p-4 rounded-xl border border-slate-100 print:bg-transparent print:p-0 print:border-none">
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                Ditujukan Kepada:
+              </span>
+              <p className="font-bold text-slate-900 text-sm">
+                {invoice.customers?.customer_name || "Pelanggan Tanpa Nama"}
+              </p>
+              <p className="font-mono text-slate-600">
+                No. Tel: {invoice.customers?.customer_phone || "-"}
+              </p>
+              {(invoice.customers?.address1 || invoice.customers?.address2) && (
+                <p className="text-slate-500 pt-0.5">
+                  {invoice.customers?.address1}
+                  {invoice.customers?.address2 &&
+                    `, ${invoice.customers?.address2}`}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Senarai Perkhidmatan */}
+          <div className="space-y-3">
+            <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Pecahan Perkhidmatan & Caj
+            </h3>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-100/80 border-y border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                    <th className="py-2.5 px-3 w-10 text-center">#</th>
+                    <th className="py-2.5 px-3">Keterangan Item</th>
+                    <th className="py-2.5 px-3 text-center w-20">Kuantiti</th>
+                    <th className="py-2.5 px-3 text-right w-28">Harga Unit</th>
+                    <th className="py-2.5 px-3 text-right w-28">Jumlah</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {itemsList.length > 0 ? (
+                    itemsList.map((item, idx) => {
+                      const name =
+                        item.item_name || item.name || "Perkhidmatan Katering";
+                      const qty = Number(item.quantity || item.qty || 1);
+                      const unitPrice = Number(
+                        item.unit_price || item.price || 0,
+                      );
+                      const itemTotal = Number(
+                        item.total_price || item.amount || qty * unitPrice,
+                      );
+
+                      return (
+                        <tr key={item.id || idx}>
+                          <td className="py-3 px-3 font-mono text-center text-slate-400">
+                            {idx + 1}
+                          </td>
+                          <td className="py-3 px-3">
+                            <p className="font-bold text-slate-900">{name}</p>
+                            {item.description && (
+                              <p className="text-[11px] text-slate-500 mt-0.5">
+                                {item.description}
+                              </p>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 text-center font-mono font-bold">
+                            {qty}
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono">
+                            {formatRM(unitPrice)}
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">
+                            {formatRM(itemTotal)}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td
+                        colSpan={4}
+                        className="py-3 px-3 italic text-slate-500"
+                      >
+                        Perkhidmatan / Tempahan Invois
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">
+                        {formatRM(totalAmount)}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Ringkasan Bayaran & QR */}
+          <div className="pt-4 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
+            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex items-center gap-4 print:border-slate-300">
+              <div className="relative w-20 h-20 bg-white p-1 rounded-lg border border-slate-200 shrink-0">
+                <Image
+                  src="/qr-duitnow.png"
+                  alt="DuitNow QR Payment"
+                  fill
+                  className="object-contain"
+                />
+              </div>
+              <div className="space-y-1 text-xs">
+                <p className="font-bold text-slate-900">Imbas Untuk Bayar</p>
+                <p className="text-[10px] text-slate-500 leading-relaxed">
+                  Gunakan aplikasi Perbankan Dalam Talian atau E-Wallet untuk
+                  imbas QR DuitNow ini.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2 text-xs sm:text-right">
+              <div className="flex justify-between sm:justify-end gap-6 text-slate-600">
+                <span>Jumlah Keseluruhan:</span>
+                <span className="font-mono font-bold text-slate-900">
+                  {formatRM(totalAmount)}
+                </span>
+              </div>
+              <div className="flex justify-between sm:justify-end gap-6 text-emerald-600">
+                <span>Bayaran Diterima:</span>
+                <span className="font-mono font-bold">
+                  {formatRM(paidAmount)}
+                </span>
+              </div>
+              <div className="flex justify-between sm:justify-end gap-6 pt-2 border-t border-slate-200 text-sm font-black text-slate-900">
+                <span>Baki Perlu Dibayar:</span>
+                <span className="font-mono text-blue-600">
+                  {formatRM(balanceDue)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Nota & Terma Bayaran */}
+          {invoice.notes && (
+            <div className="pt-4 border-t border-slate-100 text-xs text-slate-500 space-y-1">
+              <p className="font-bold uppercase text-[10px] tracking-wider text-slate-400">
+                Nota & Terma Bayaran:
+              </p>
+              <p className="whitespace-pre-line leading-relaxed text-[11px] bg-slate-50 p-3 rounded-lg border border-slate-100 print:bg-transparent print:p-0 print:border-none">
+                {invoice.notes}
+              </p>
+            </div>
+          )}
+
+          {/* Footer */}
+          <div className="pt-6 border-t border-slate-100 text-center text-[10px] text-slate-400 space-y-1">
+            <p className="font-medium">
+              Terima kasih kerana berurus niaga dengan kami!
+            </p>
+            <p>
+              Dokumen ini dijana secara automatik dan sah tanpa tandatangan.
+            </p>
+          </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 }
