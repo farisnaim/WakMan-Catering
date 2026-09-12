@@ -1,426 +1,423 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { useState } from "react";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
 
-interface Customer {
+interface CustomerProfile {
+  id: number;
   customer_name: string;
   customer_phone: string;
+  address1: string | null;
+  address2: string | null;
 }
 
-interface Invoice {
-  id: string;
+interface UserInvoice {
+  id: number;
   invoice_number: string;
+  issue_date: string | null;
   status: string;
   total_amount: number;
-  deposit_paid: number;
-  created_at: string;
-  invoice_date: string;
-  customers: Customer | null;
 }
 
-interface DashboardStats {
-  totalInvoices: number;
-  totalPaid: number;
-  totalUnpaid: number;
-  pendingAmount: number;
-}
+export default function PublicLandingPage() {
+  const [phoneSearch, setPhoneSearch] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [customer, setCustomer] = useState<CustomerProfile | null>(null);
+  const [invoices, setInvoices] = useState<UserInvoice[]>([]);
+  const [hasSearched, setHasSearched] = useState(false);
 
-export default function DashboardPage() {
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [stats, setStats] = useState<DashboardStats>({
-    totalInvoices: 0,
-    totalPaid: 0,
-    totalUnpaid: 0,
-    pendingAmount: 0,
-  });
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-
-  // State untuk Filter Revenue
-  const [selectedYear, setSelectedYear] = useState<string>(
-    new Date().getFullYear().toString(),
+  // No WhatsApp Rasmi Wakman Catering
+  const whatsappNumber = "60103068294";
+  const defaultGreeting = encodeURIComponent(
+    "Assalammualaikum Wakman Catering, saya berminat untuk bertanyakan maklumat berkaitan pakej tempahan catering.",
   );
-  const [selectedMonth, setSelectedMonth] = useState<string>("all");
+  const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${defaultGreeting}`;
 
-  useEffect(() => {
-    async function fetchDashboardData() {
-      setLoading(true);
-      try {
-        // Ambil data invois bersama maklumat pelanggan
-        const { data, error } = await supabase
-          .from("invoices")
-          .select(
-            `
-            id,
-            invoice_number,
-            status,
-            total_amount,
-            deposit_paid,
-            created_at,
-            invoice_date,
-            customers (
-              customer_name,
-              customer_phone
-            )
-          `,
-          )
-          .order("created_at", { ascending: false });
+  const handleSearchInvoice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!phoneSearch.trim()) return;
 
-        if (error) throw error;
+    setSearching(true);
+    setSearchError(null);
+    setCustomer(null);
+    setInvoices([]);
+    setHasSearched(true);
 
-        if (data) {
-          const fetchedInvoices = data as unknown as Invoice[];
-          setInvoices(fetchedInvoices);
+    try {
+      // Clean phone input
+      const cleanedPhone = phoneSearch.trim();
 
-          const totalInvoices = fetchedInvoices.length;
-          const totalPaid = fetchedInvoices.filter(
-            (i) => i.status === "paid",
-          ).length;
-          const totalUnpaid = fetchedInvoices.filter(
-            (i) => i.status !== "paid",
-          ).length;
+      // 1. Cari pelanggan berdasarkan nombor telefon
+      const { data: customerData, error: custError } = await supabase
+        .from("customers")
+        .select("id, customer_name, customer_phone, address1, address2")
+        .ilike("customer_phone", `%${cleanedPhone}%`)
+        .maybeSingle();
 
-          const pendingAmount = fetchedInvoices
-            .filter((i) => i.status !== "paid")
-            .reduce((acc, curr) => {
-              const balance =
-                Number(curr.total_amount) - Number(curr.deposit_paid || 0);
-              return acc + (balance > 0 ? balance : 0);
-            }, 0);
+      if (custError) throw custError;
 
-          setStats({
-            totalInvoices,
-            totalPaid,
-            totalUnpaid,
-            pendingAmount,
-          });
-        }
-      } catch (err) {
-        console.error("Ralat memuatkan statistik dashboard:", err);
-      } finally {
-        setLoading(false);
+      if (!customerData) {
+        setSearchError(
+          "Tiada rekod tempahan dijumpai untuk nombor telefon ini. Sila pastikan nombor telefon adalah betul.",
+        );
+        return;
       }
+
+      setCustomer(customerData);
+
+      // 2. Ambil senarai invois pelanggan ini
+      const { data: invoiceData, error: invError } = await supabase
+        .from("invoices")
+        .select("id, invoice_number, issue_date, status, total_amount")
+        .eq("customer_id", customerData.id)
+        .order("created_at", { ascending: false });
+
+      if (invError) throw invError;
+
+      setInvoices(invoiceData || []);
+    } catch (err: any) {
+      console.error("Ralat carian invois:", err);
+      setSearchError("Gagal membuat carian. Sila cuba sekali lagi.");
+    } finally {
+      setSearching(false);
     }
+  };
 
-    fetchDashboardData();
-  }, []);
+  const formatRM = (val: number) => {
+    return new Intl.NumberFormat("ms-MY", {
+      style: "currency",
+      currency: "MYR",
+    }).format(val || 0);
+  };
 
-  const availableYears = Array.from(
-    new Set(
-      invoices.map((inv) =>
-        new Date(inv.invoice_date || inv.created_at).getFullYear().toString(),
-      ),
-    ),
-  ).sort((a, b) => Number(b) - Number(a));
-
-  if (!availableYears.includes(new Date().getFullYear().toString())) {
-    availableYears.unshift(new Date().getFullYear().toString());
-  }
-
-  const filteredRevenue = invoices
-    .filter((inv) => inv.status === "paid")
-    .filter((inv) => {
-      const date = new Date(inv.invoice_date || inv.created_at);
-      const yearMatches = date.getFullYear().toString() === selectedYear;
-      const monthMatches =
-        selectedMonth === "all" ||
-        (date.getMonth() + 1).toString().padStart(2, "0") === selectedMonth;
-
-      return yearMatches && monthMatches;
-    })
-    .reduce((sum, inv) => sum + Number(inv.total_amount || 0), 0);
-
-  // Filter carian untuk pelanggan mencari invois mereka
-  const searchedInvoices = invoices.filter((inv) => {
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return true;
-
-    const invNum = inv.invoice_number?.toLowerCase() || "";
-    const custName = inv.customers?.customer_name?.toLowerCase() || "";
-    const custPhone = inv.customers?.customer_phone?.toLowerCase() || "";
-
-    return invNum.includes(q) || custName.includes(q) || custPhone.includes(q);
-  });
+  const getStatusBadge = (st: string) => {
+    switch (st?.toLowerCase()) {
+      case "paid":
+        return "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+      case "partial":
+      case "partially_paid":
+        return "bg-blue-500/10 text-blue-400 border-blue-500/20";
+      default:
+        return "bg-amber-500/10 text-amber-400 border-amber-500/20";
+    }
+  };
 
   return (
-    <main
-      className="min-h-screen bg-cover bg-center bg-no-repeat p-4 sm:p-8 text-slate-800"
-      style={{ backgroundImage: "url('/dark_cook_bg.jpg')" }}
-    >
-      <div className="max-w-5xl mx-auto space-y-8">
-        {/* HEADER DASHBOARD */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#EEDC82]/85 p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-              KAMARUZAMAN ZAINUDDIN
-            </h1>
-            <p className="text-xs text-slate-500 mt-1">
-              Sistem pengurusan Invois Wak Man & Family
-            </p>
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-amber-500 selection:text-slate-900 font-sans">
+      {/* HEADER / NAVIGATION */}
+      <header className="border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md sticky top-0 z-50">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500 flex items-center justify-center font-black text-slate-950 text-xl shadow-lg shadow-amber-500/20">
+              W
+            </div>
+            <div>
+              <span className="font-black tracking-tight text-lg sm:text-xl text-white block leading-none">
+                WAKMAN CATERING
+              </span>
+              <span className="text-[10px] text-amber-400 font-bold tracking-widest uppercase">
+                Sajian Katering Berkualiti
+              </span>
+            </div>
           </div>
-          <img
-            src="/favicon.svg"
-            alt="Logo Syarikat"
-            className="w-20 h-20 object-contain shrink-0"
-          />
-        </div>
 
-        {/* HEADER TINDAKAN */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-              Dashboard Utama
-            </h1>
-            <p className="text-xs text-slate-500 mt-1">
-              Sistem Pengurusan Invois — Kamaruzaman Zainuddin
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Link
-              href="/invoices/new"
-              className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow transition flex items-center gap-2"
+          <div className="flex items-center gap-2 sm:gap-3">
+            <a
+              href={whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3.5 py-2 sm:px-5 sm:py-2.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow-lg shadow-emerald-600/20 transition flex items-center gap-1.5"
             >
-              <span>➕</span> Invois Baru
-            </Link>
+              <span>💬</span> Hubungi Kami
+            </a>
             <Link
-              href="/customers/new"
-              className="px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl shadow transition flex items-center gap-2"
+              href="/dashboard"
+              className="px-3 py-2 sm:px-4 sm:py-2.5 text-xs font-bold text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl transition"
             >
-              <span>👤</span> Pelanggan Baru
+              Log Masuk Admin
             </Link>
           </div>
         </div>
+      </header>
 
-        {/* BAHAGIAN CARIAN INVOIS PELANGGAN */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">
-              🔍 Carian Invois Pelanggan
-            </h2>
-            <p className="text-xs text-slate-500">
-              Masukkan Nombor Invois, Nama Pelanggan, atau Nombor Telefon untuk
-              mencari rekod.
-            </p>
+      <main className="flex-1 space-y-20 pb-20">
+        {/* HERO SECTION */}
+        <section className="max-w-5xl mx-auto px-6 pt-16 text-center space-y-6">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold">
+            ✨ Pakar Sajian Majlis & Kenduri Kahwin
           </div>
-          <input
-            type="text"
-            placeholder="Cari contoh: INV-001, Ahmad, 0123456789..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
 
-          {searchQuery && (
-            <div className="mt-4 space-y-2">
-              <p className="text-xs font-bold text-slate-500">
-                Hasil Carian ({searchedInvoices.length}):
+          <h1 className="text-4xl sm:text-6xl font-black text-white tracking-tight leading-tight">
+            Citarasa Tradisi & <br />
+            <span className="bg-gradient-to-r from-amber-400 via-orange-400 to-amber-200 bg-clip-text text-transparent">
+              Perkhidmatan Katering Terbaik
+            </span>
+          </h1>
+
+          <p className="max-w-2xl mx-auto text-slate-400 text-sm sm:text-base leading-relaxed">
+            Menyediakan hidangan enak dan segar untuk sebarang majlis
+            kesyukuran, perkahwinan, korporat, dan acara peribadi anda.
+          </p>
+
+          <div className="pt-2 flex justify-center">
+            <a
+              href="#semak-invois"
+              className="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-amber-500/20 transition"
+            >
+              Semak Invois Anda
+            </a>
+          </div>
+        </section>
+
+        {/* SECTION SEMAKAN INVOIS AWAM */}
+        <section
+          id="semak-invois"
+          className="max-w-4xl mx-auto px-4 sm:px-6 scroll-mt-24"
+        >
+          <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-10 shadow-2xl space-y-8">
+            <div className="text-center space-y-2">
+              <span className="text-xs font-bold uppercase tracking-widest text-amber-400">
+                Portal Pelanggan
+              </span>
+              <h2 className="text-2xl font-black text-white">
+                Semakan Invois & Rekod Tempahan
+              </h2>
+              <p className="text-xs text-slate-400 max-w-md mx-auto">
+                Masukkan nombor telefon yang didaftarkan semasa membuat tempahan
+                untuk melihat senarai invois anda.
               </p>
-              {searchedInvoices.length === 0 ? (
-                <p className="text-xs text-red-500">Tiada invois dijumpai.</p>
-              ) : (
-                <div className="divide-y divide-slate-100 max-h-60 overflow-y-auto">
-                  {searchedInvoices.map((inv) => (
-                    <div
-                      key={inv.id}
-                      className="py-3 flex justify-between items-center text-xs"
-                    >
-                      <div>
-                        <span className="font-bold text-slate-800">
-                          {inv.invoice_number || `ID: ${inv.id}`}
-                        </span>
-                        <span className="ml-2 text-slate-600">
-                          (
-                          {inv.customers?.customer_name ||
-                            "Pelanggan Tanpa Nama"}
-                          )
-                        </span>
-                        <span className="block text-slate-400">
-                          {inv.customers?.customer_phone || "-"}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span
-                          className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase ${
-                            inv.status === "paid"
-                              ? "bg-green-100 text-green-700"
-                              : "bg-amber-100 text-amber-700"
-                          }`}
-                        >
-                          {inv.status}
-                        </span>
-                        <Link
-                          href={`/invoices/${inv.id}`}
-                          className="px-3 py-1 bg-blue-50 text-blue-600 font-bold rounded-lg hover:bg-blue-100"
-                        >
-                          Lihat
-                        </Link>
-                      </div>
+            </div>
+
+            {/* Borang Carian Nombor Telefon */}
+            <form
+              onSubmit={handleSearchInvoice}
+              className="max-w-md mx-auto space-y-3"
+            >
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: 0103068294"
+                  value={phoneSearch}
+                  onChange={(e) => setPhoneSearch(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-2xl text-xs font-mono font-bold text-white focus:outline-none placeholder:text-slate-600 transition"
+                />
+                <button
+                  type="submit"
+                  disabled={searching}
+                  className="px-6 py-3 bg-amber-500 hover:bg-amber-400 disabled:bg-amber-500/50 text-slate-950 font-bold text-xs rounded-2xl shadow-md shadow-amber-500/10 shrink-0 transition"
+                >
+                  {searching ? "Cari..." : "Cari Invois"}
+                </button>
+              </div>
+            </form>
+
+            {/* Mesej Ralat */}
+            {searchError && (
+              <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-xs text-rose-400 text-center font-medium">
+                {searchError}
+              </div>
+            )}
+
+            {/* Keputusan Carian */}
+            {customer && (
+              <div className="space-y-6 pt-4 border-t border-slate-800/80">
+                {/* Maklumat Profil Pelanggan */}
+                <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800/80 space-y-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 block">
+                    Profil Pelanggan
+                  </span>
+                  <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+                    <div>
+                      <h3 className="text-base font-bold text-white">
+                        {customer.customer_name}
+                      </h3>
+                      <p className="text-xs font-mono text-slate-400">
+                        {customer.customer_phone}
+                      </p>
                     </div>
-                  ))}
+                    {(customer.address1 || customer.address2) && (
+                      <p className="text-xs text-slate-400 max-w-xs sm:text-right">
+                        {customer.address1}
+                        {customer.address2 ? `, ${customer.address2}` : ""}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              )}
+
+                {/* Jadual Invois */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Senarai Invois ({invoices.length})
+                  </h4>
+
+                  {invoices.length === 0 ? (
+                    <p className="text-xs text-slate-500 text-center py-6 bg-slate-950 rounded-2xl border border-slate-800/50">
+                      Tiada invois dijumpai untuk akaun ini.
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto border border-slate-800 rounded-2xl bg-slate-950">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="border-b border-slate-800 text-slate-400 font-bold uppercase text-[10px]">
+                            <th className="p-4">No. Invois</th>
+                            <th className="p-4">Tarikh</th>
+                            <th className="p-4">Status</th>
+                            <th className="p-4 text-right">Jumlah</th>
+                            <th className="p-4 text-center">Tindakan</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                          {invoices.map((inv) => (
+                            <tr
+                              key={inv.id}
+                              className="hover:bg-slate-900/50 transition"
+                            >
+                              <td className="p-4 font-mono font-bold text-amber-400">
+                                {inv.invoice_number}
+                              </td>
+                              <td className="p-4 text-slate-400">
+                                {inv.issue_date || "-"}
+                              </td>
+                              <td className="p-4">
+                                <span
+                                  className={`px-2.5 py-0.5 border rounded-full text-[10px] font-bold uppercase ${getStatusBadge(
+                                    inv.status,
+                                  )}`}
+                                >
+                                  {inv.status}
+                                </span>
+                              </td>
+                              <td className="p-4 text-right font-mono font-bold text-white">
+                                {formatRM(Number(inv.total_amount))}
+                              </td>
+                              <td className="p-4 text-center">
+                                <Link
+                                  href={`/inv/${inv.invoice_number}`}
+                                  className="inline-block px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-slate-950 border border-amber-500/20 font-bold text-[11px] rounded-xl transition"
+                                >
+                                  Lihat →
+                                </Link>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* VIDEO & GALERI MAJLIS */}
+        <section className="max-w-6xl mx-auto px-6 space-y-8">
+          <div className="text-center space-y-2">
+            <span className="text-xs font-bold uppercase tracking-widest text-amber-400">
+              Galeri & Video
+            </span>
+            <h2 className="text-2xl font-black text-white">
+              Suasana & Persediaan Majlis
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="aspect-video bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden relative flex items-center justify-center">
+              <span className="text-xs text-slate-500 font-mono">
+                [ Ruang Video Highlights Katering / YouTube Embed ]
+              </span>
             </div>
-          )}
-        </div>
 
-        {/* KAD TOTAL REVENUE PENUH */}
-        <div className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white p-6 rounded-2xl shadow-lg border border-emerald-500/30 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-          <div>
-            <div className="flex items-center gap-2 text-emerald-100 text-xs font-extrabold uppercase tracking-widest">
-              <span>💰</span> Jumlah Pendapatan (Paid Invoices Only)
-            </div>
-            <div className="text-3xl sm:text-4xl font-black mt-2 tracking-tight">
-              {loading ? "..." : `RM ${filteredRevenue.toFixed(2)}`}
+            <div className="aspect-video bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden relative flex items-center justify-center">
+              <span className="text-xs text-slate-500 font-mono">
+                [ Ruang Video Dokumentasi Majlis / TikTok Embed ]
+              </span>
             </div>
           </div>
+        </section>
 
-          <div className="flex flex-wrap gap-3 w-full md:w-auto">
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(e.target.value)}
-              className="bg-white/10 text-white font-semibold text-xs border border-white/20 rounded-xl px-3 py-2.5 focus:outline-none focus:bg-emerald-800 transition"
-            >
-              {availableYears.map((year) => (
-                <option key={year} value={year} className="text-slate-900">
-                  Tahun {year}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-white/10 text-white font-semibold text-xs border border-white/20 rounded-xl px-3 py-2.5 focus:outline-none focus:bg-emerald-800 transition"
-            >
-              <option value="all" className="text-slate-900">
-                Semua Bulan
-              </option>
-              <option value="01" className="text-slate-900">
-                Januari
-              </option>
-              <option value="02" className="text-slate-900">
-                Februari
-              </option>
-              <option value="03" className="text-slate-900">
-                Mac
-              </option>
-              <option value="04" className="text-slate-900">
-                April
-              </option>
-              <option value="05" className="text-slate-900">
-                Mei
-              </option>
-              <option value="06" className="text-slate-900">
-                Jun
-              </option>
-              <option value="07" className="text-slate-900">
-                Julai
-              </option>
-              <option value="08" className="text-slate-900">
-                Ogos
-              </option>
-              <option value="09" className="text-slate-900">
-                September
-              </option>
-              <option value="10" className="text-slate-900">
-                Oktober
-              </option>
-              <option value="11" className="text-slate-900">
-                November
-              </option>
-              <option value="12" className="text-slate-900">
-                Disember
-              </option>
-            </select>
-          </div>
-        </div>
-
-        {/* KAD STATISTIK RINGKAS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Jumlah Invois
-            </p>
-            <p className="text-2xl font-black text-slate-800 mt-2">
-              {loading ? "..." : stats.totalInvoices}
-            </p>
+        {/* FEEDBACK & TESTIMONI PELANGGAN */}
+        <section className="max-w-6xl mx-auto px-6 space-y-8">
+          <div className="text-center space-y-2">
+            <span className="text-xs font-bold uppercase tracking-widest text-amber-400">
+              Maklum Balas
+            </span>
+            <h2 className="text-2xl font-black text-white">
+              Apa Kata Pelanggan Kami
+            </h2>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-            <p className="text-xs font-bold text-green-500 uppercase tracking-wider">
-              Invois Selesai (Paid)
-            </p>
-            <p className="text-2xl font-black text-green-600 mt-2">
-              {loading ? "..." : stats.totalPaid}
-            </p>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-            <p className="text-xs font-bold text-amber-500 uppercase tracking-wider">
-              Belum Bayar (Unpaid)
-            </p>
-            <p className="text-2xl font-black text-amber-600 mt-2">
-              {loading ? "..." : stats.totalUnpaid}
-            </p>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-            <p className="text-xs font-bold text-red-400 uppercase tracking-wider">
-              Jumlah Tunggakan
-            </p>
-            <p className="text-2xl font-black text-red-600 mt-2">
-              {loading ? "..." : `RM ${stats.pendingAmount.toFixed(2)}`}
-            </p>
-          </div>
-        </div>
-
-        {/* MENU NAVIGASI PANTAS */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <h2 className="text-base font-bold text-slate-900 mb-4">Menu</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Link
-              href="/invoices"
-              className="p-4 border border-slate-100 hover:border-blue-300 bg-slate-50 hover:bg-blue-50/50 rounded-xl transition group"
-            >
-              <div className="text-2xl mb-2">📄</div>
-              <h3 className="font-bold text-slate-800 group-hover:text-blue-600 text-sm">
-                Senarai Invois
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Lihat, cetak, kemas kini status & kemas kini maklumat invois.
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-slate-900/60 border border-slate-800/80 p-6 rounded-3xl space-y-4">
+              <div className="flex text-amber-400 text-sm">★★★★★</div>
+              <p className="text-xs text-slate-300 leading-relaxed italic">
+                "Lauk pauk semua sedap, gulai kawah memang padu! Tetamu majlis
+                perkahwinan semua puji. Service Wakman Catering sangat cekap."
               </p>
-            </Link>
+              <div className="pt-2 border-t border-slate-800/60">
+                <p className="text-xs font-bold text-white">Puan Faridah</p>
+                <p className="text-[10px] text-slate-500">
+                  Majlis Perkahwinan, Bandar Enstek
+                </p>
+              </div>
+            </div>
 
-            <Link
-              href="/customers"
-              className="p-4 border border-slate-100 hover:border-blue-300 bg-slate-50 hover:bg-blue-50/50 rounded-xl transition group"
-            >
-              <div className="text-2xl mb-2">👥</div>
-              <h3 className="font-bold text-slate-800 group-hover:text-blue-600 text-sm">
-                Pengurusan Pelanggan
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Urus data pelanggan, nombor telefon dan alamat.
+            <div className="bg-slate-900/60 border border-slate-800/80 p-6 rounded-3xl space-y-4">
+              <div className="flex text-amber-400 text-sm">★★★★★</div>
+              <p className="text-xs text-slate-300 leading-relaxed italic">
+                "Pilihan menu pelbagai dan tepat masa. Penghantaran siap set up
+                perhiasan meja buffet yang kemas."
               </p>
-            </Link>
+              <div className="pt-2 border-t border-slate-800/60">
+                <p className="text-xs font-bold text-white">Encik Hafiz</p>
+                <p className="text-[10px] text-slate-500">
+                  Majlis Akikah & Kesyukuran, Nilai
+                </p>
+              </div>
+            </div>
 
-            <Link
-              href="/invoices/new"
-              className="p-4 border border-slate-100 hover:border-blue-300 bg-slate-50 hover:bg-blue-50/50 rounded-xl transition group"
-            >
-              <div className="text-2xl mb-2">📝</div>
-              <h3 className="font-bold text-slate-800 group-hover:text-blue-600 text-sm">
-                Cipta Invois
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Bina invois baharu untuk pelanggan dengan pantas.
+            <div className="bg-slate-900/60 border border-slate-800/80 p-6 rounded-3xl space-y-4">
+              <div className="flex text-amber-400 text-sm">★★★★★</div>
+              <p className="text-xs text-slate-300 leading-relaxed italic">
+                "Senang nak urus hal bayaran dan tengok invois secara online.
+                Harga pun berpatutan dengan kualiti makanan."
               </p>
+              <div className="pt-2 border-t border-slate-800/60">
+                <p className="text-xs font-bold text-white">Datin Azlina</p>
+                <p className="text-[10px] text-slate-500">
+                  Acara Korporat, Sepang
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      {/* FOOTER */}
+      <footer className="border-t border-slate-800 bg-slate-950 py-8 text-center text-xs text-slate-500">
+        <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <p>
+            © {new Date().getFullYear()} Wakman Catering. Hak Cipta Terpelihara.
+          </p>
+          <div className="flex items-center gap-4">
+            <a
+              href={whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-emerald-400 hover:underline"
+            >
+              WhatsApp: 010-3068294
+            </a>
+            <span>•</span>
+            <Link href="/dashboard" className="hover:text-slate-300 transition">
+              Portal Admin
             </Link>
           </div>
         </div>
-      </div>
-    </main>
+      </footer>
+    </div>
   );
 }
