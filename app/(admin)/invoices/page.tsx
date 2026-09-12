@@ -147,10 +147,7 @@ export default function InvoicesPage() {
 
     const origin = typeof window !== "undefined" ? window.location.origin : "";
 
-    // URL Pautan Invois Awam (Menggunakan slug jika ada, atau id)
     const invoiceUrl = `${origin}/inv/${inv.slug || inv.id}`;
-
-    // URL Gambar QR Payment dalam folder public (Tukar nama fail mengikut keperluan)
     const qrUrl = `${origin}/qr-duitnow-template.png`;
 
     const message = `Assalamualaikum dan Salam Sejahtera \nTuan/Puan *${inv.customers?.customer_name || "Pelanggan"}*,\n\nInvois anda *#${
@@ -192,6 +189,48 @@ export default function InvoicesPage() {
       setSelectedInvoice(null);
     } else {
       alert("Gagal mengemaskini status: " + error.message);
+    }
+  };
+
+  // Fungsi Padam Invois (Diperbaiki & Semak Ralat Database)
+  const handleDeleteInvoice = async (inv: InvoiceData) => {
+    const confirmed = window.confirm(
+      `Adakah anda pasti mahu memadam invois #${inv.invoice_number || inv.id}? Tindakan ini tidak boleh dibatalkan.`,
+    );
+
+    if (!confirmed) return;
+
+    try {
+      // 1. Padam rekod anak dalam jadual invoice_items (jika ada)
+      const { error: itemsError } = await supabase
+        .from("invoice_items")
+        .delete()
+        .eq("invoice_id", inv.id);
+
+      if (itemsError) {
+        alert("Gagal memadam item invois: " + itemsError.message);
+        return;
+      }
+
+      // 2. Padam invois daripada jadual invoices
+      const { error: invoiceError } = await supabase
+        .from("invoices")
+        .delete()
+        .eq("id", inv.id);
+
+      if (invoiceError) {
+        alert(
+          "Gagal memadam invois daripada pangkalan data: " +
+            invoiceError.message,
+        );
+        return;
+      }
+
+      // 3. Kemaskini state tempatan hanya selepas sah dipadam di Supabase
+      setInvoices((prev) => prev.filter((item) => item.id !== inv.id));
+      alert("Invois berjaya dipadamkan.");
+    } catch (err: any) {
+      alert("Ralat memadam invois: " + (err.message || err));
     }
   };
 
@@ -315,10 +354,8 @@ export default function InvoicesPage() {
                       </span>
                     </td>
 
-                    {/* 3 Butang Tindakan: Lihat, Hantar, Status */}
                     <td className="p-4">
                       <div className="flex items-center justify-center gap-1.5">
-                        {/* 1. Butang Lihat (Pautan Awam) */}
                         <Link
                           href={`/inv/${inv.slug || inv.id}`}
                           target="_blank"
@@ -328,7 +365,6 @@ export default function InvoicesPage() {
                           👁️ Lihat
                         </Link>
 
-                        {/* 2. Butang Hantar (WhatsApp) */}
                         <button
                           onClick={() => handleSendWhatsapp(inv)}
                           className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[10px] border border-emerald-200 rounded-lg transition cursor-pointer"
@@ -337,7 +373,6 @@ export default function InvoicesPage() {
                           💬 Hantar
                         </button>
 
-                        {/* 3. Butang Status (Tukar Status Bayaran) */}
                         <button
                           onClick={() => {
                             setSelectedInvoice(inv);
@@ -347,6 +382,14 @@ export default function InvoicesPage() {
                           title="Kemaskini Status Bayaran"
                         >
                           ⚙️ Status
+                        </button>
+
+                        <button
+                          onClick={() => handleDeleteInvoice(inv)}
+                          className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] border border-rose-200 rounded-lg transition cursor-pointer"
+                          title="Padam Invois"
+                        >
+                          🗑️ Padam
                         </button>
                       </div>
                     </td>

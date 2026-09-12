@@ -9,6 +9,7 @@ interface DashboardStats {
   totalOrders: number;
   totalInvoices: number;
   totalRevenue: number;
+  totalInvoicesAmount: number;
   pendingDeposit: number;
   unpaidInvoicesCount: number;
 }
@@ -42,6 +43,7 @@ export default function DashboardPage() {
     totalOrders: 0,
     totalInvoices: 0,
     totalRevenue: 0,
+    totalInvoicesAmount: 0,
     pendingDeposit: 0,
     unpaidInvoicesCount: 0,
   });
@@ -78,7 +80,7 @@ export default function DashboardPage() {
 
       if (ordersError) console.error("Ralat Orders:", ordersError.message);
 
-      // 3. Dapatkan Semua Invois (Invoices) - Tanpa Join
+      // 3. Dapatkan Semua Invois Terkini terus dari pangkalan data Supabase
       const { data: invoicesData, error: invoicesError } = await supabase
         .from("invoices")
         .select(
@@ -94,13 +96,19 @@ export default function DashboardPage() {
       const totalOrd = ordersData?.length || 0;
       const totalInv = invoicesData?.length || 0;
 
-      // Pengiraan Hasil Jualan & Deposit
+      // Pengiraan Hasil Jualan & Deposit Tempahan
       const revenue = (ordersData || []).reduce(
         (sum, item) => sum + (Number(item.total_price) || 0),
         0,
       );
       const deposits = (ordersData || []).reduce(
         (sum, item) => sum + (Number(item.deposit_paid) || 0),
+        0,
+      );
+
+      // Penjumlahan Keseluruhan Nilai Invois (Database Invoices Only)
+      const invTotalAmount = (invoicesData || []).reduce(
+        (sum, item) => sum + (Number(item.total_amount) || 0),
         0,
       );
 
@@ -114,6 +122,7 @@ export default function DashboardPage() {
         totalOrders: totalOrd,
         totalInvoices: totalInv,
         totalRevenue: revenue,
+        totalInvoicesAmount: invTotalAmount,
         pendingDeposit: deposits,
         unpaidInvoicesCount: unpaidCount,
       });
@@ -134,7 +143,7 @@ export default function DashboardPage() {
         setRecentOrders(formattedOrders);
       }
 
-      // Formatkan 5 Invois Terkini
+      // Formatkan 5 Invois Terkini mengikut pangkalan data semasa
       if (invoicesData) {
         const formattedInvoices: RecentInvoice[] = invoicesData
           .slice(0, 5)
@@ -210,17 +219,30 @@ export default function DashboardPage() {
       </div>
 
       {/* Kad Statistik Ringkasan */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Jumlah Hasil Jualan */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* Jumlah Hasil Jualan (Orders) */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
           <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-            Jumlah Tempahan (Orders)
+            Jumlah Tempahan
           </p>
           <p className="text-2xl font-black text-slate-900">
             {formatRM(stats.totalRevenue)}
           </p>
           <p className="text-[10px] text-slate-500">
-            Nilai keseluruhan nilai tempahan
+            Nilai keseluruhan tempahan
+          </p>
+        </div>
+
+        {/* Ringkasan Penjumlahan Invois (Baharu) */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
+          <p className="text-[11px] font-bold text-blue-600 uppercase tracking-wider">
+            Jumlah Nilai Invois
+          </p>
+          <p className="text-2xl font-black text-blue-700">
+            {formatRM(stats.totalInvoicesAmount)}
+          </p>
+          <p className="text-[10px] text-slate-500">
+            Penjumlahan keseluruhan invois
           </p>
         </div>
 
@@ -339,7 +361,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* 5 Invois Terkini */}
+        {/* 5 Invois Terkini (Mengikut Database) */}
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="font-bold text-slate-900 text-sm">Invois Terkini</h2>
@@ -362,7 +384,7 @@ export default function DashboardPage() {
                   <tr className="border-b border-slate-100 text-slate-400 font-bold uppercase text-[10px]">
                     <th className="pb-2">No. Invois</th>
                     <th className="pb-2">Pelanggan</th>
-                    <th className="pb-2 text-right">Baki </th>
+                    <th className="pb-2 text-right">Baki</th>
                     <th className="pb-2 text-center">Status</th>
                   </tr>
                 </thead>

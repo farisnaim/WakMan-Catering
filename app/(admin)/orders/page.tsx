@@ -125,6 +125,37 @@ Sebarang persoalan boleh hubungi kami di talian : 010 306 8294`;
     window.open(whatsappUrl, "_blank");
   };
 
+  // Fungsi Padam Tempahan
+  const handleDeleteOrder = async (order: Order) => {
+    const orderNo = `#ORD-${order.id.toString().padStart(4, "0")}`;
+    const confirmed = window.confirm(
+      `Adakah anda pasti mahu memadam tempahan ${orderNo}? Tindakan ini tidak boleh dibatalkan.`,
+    );
+
+    if (!confirmed) return;
+
+    try {
+      // 1. Padam item berkaitan di jadual order_items (jika ada)
+      await supabase.from("order_items").delete().eq("order_id", order.id);
+
+      // 2. Padam tempahan utama daripada jadual orders
+      const { error } = await supabase
+        .from("orders")
+        .delete()
+        .eq("id", order.id);
+
+      if (error) {
+        alert("Gagal memadam tempahan: " + error.message);
+        return;
+      }
+
+      // 3. Kemaskini senarai tempatan
+      setOrders((prev) => prev.filter((o) => o.id !== order.id));
+    } catch (err: any) {
+      alert("Ralat memadam tempahan: " + (err.message || err));
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "completed":
@@ -270,7 +301,7 @@ Sebarang persoalan boleh hubungi kami di talian : 010 306 8294`;
                 </div>
 
                 {/* Butang Tindakan */}
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-1.5">
                   <button
                     onClick={() => handleSendWhatsAppLink(order)}
                     title="Hantar Pautan Quotation via WhatsApp"
@@ -283,7 +314,7 @@ Sebarang persoalan boleh hubungi kami di talian : 010 306 8294`;
                   <Link
                     href={`/quote/${order.id}`}
                     target="_blank"
-                    className="py-1.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition text-center"
+                    className="py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition text-center"
                     title="Lihat Paparan Quotation"
                   >
                     👁️
@@ -295,6 +326,15 @@ Sebarang persoalan boleh hubungi kami di talian : 010 306 8294`;
                   >
                     {hasQuotation ? "Edit →" : "Itemize →"}
                   </Link>
+
+                  {/* Butang Padam Tempahan */}
+                  <button
+                    onClick={() => handleDeleteOrder(order)}
+                    title="Padam Tempahan"
+                    className="py-1.5 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold text-xs rounded-xl transition cursor-pointer"
+                  >
+                    🗑️
+                  </button>
                 </div>
               </div>
             );
