@@ -215,8 +215,9 @@ export default function PublicInvoicePage({
               <h2 className="text-lg font-black text-slate-900 tracking-tight">
                 KAMARUZAMAN ZAINUDDIN
               </h2>
+              <p className="text-xs text-slate-500">Perkhidmatan Catering &</p>
               <p className="text-xs text-slate-500">
-                Perkhidmatan Catering & Tempahan Makanan Secara Korporat
+                Tempahan Makanan Secara Korporat
               </p>
               <p className="text-xs font-mono font-bold text-slate-500">
                 202103208150 (CT0091538-M)

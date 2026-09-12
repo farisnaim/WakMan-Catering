@@ -182,8 +182,9 @@ export default function PublicQuotationPage({
               <h2 className="text-lg font-black text-slate-900 tracking-tight">
                 KAMARUZAMAN ZAINUDDIN
               </h2>
+              <p className="text-xs text-slate-500">Perkhidmatan Katering</p>
               <p className="text-xs text-slate-500">
-                Perkhidmatan Katering & Tempahan Acara
+                & Tempahan Makanan Secara Korporat
               </p>
               <p className="text-xs font-mono font-bold text-slate-500">
                 202103208150 (CT0091538-M)
