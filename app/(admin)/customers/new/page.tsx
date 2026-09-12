@@ -62,7 +62,7 @@ export default function NewCustomerPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-black text-slate-900">
-            Daftar Pelanggan Baharu
+            Tambah Pelanggan Baharu
           </h1>
           <p className="text-xs text-slate-500">
             Tambah profil pelanggan baharu ke dalam sistem.
@@ -118,11 +118,11 @@ export default function NewCustomerPage() {
 
           <div className="space-y-1 pt-2">
             <label className="text-xs font-bold text-slate-700 block">
-              Alamat Baris 1
+              Alamat Baris 1 (No Rumah, Jalan, Kampung/Taman)
             </label>
             <input
               type="text"
-              placeholder="Contoh: No 123, Jalan Bunga Raya"
+              placeholder="Contoh: No 123, Jalan Bunga Raya,Taman Baiduri"
               value={address1}
               onChange={(e) => setAddress1(e.target.value)}
               className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:border-blue-600 bg-slate-50/50"
@@ -131,11 +131,11 @@ export default function NewCustomerPage() {
 
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-700 block">
-              Alamat Baris 2
+              Alamat Baris 2 (Poskod, Bandar, Negeri)
             </label>
             <input
               type="text"
-              placeholder="Contoh: Taman Merdeka, 71800 Nilai"
+              placeholder="Contoh: 42700, Banting"
               value={address2}
               onChange={(e) => setAddress2(e.target.value)}
               className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:border-blue-600 bg-slate-50/50"

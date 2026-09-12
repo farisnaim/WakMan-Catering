@@ -41,104 +41,126 @@ const NAVIGATION_GROUPS: NavGroup[] = [
 
 export default function AdminSidebar() {
   const pathname = usePathname();
-  const [isOpen, setIsOpen] = useState(true);
+  // Setkan default kepada false supaya tersorok secara asal
+  const [isOpen, setIsOpen] = useState(false);
 
   return (
     <>
-      {/* Butang Toggle Apabila Sidebar Di-Hide (Sembunyi) */}
-      {!isOpen && (
-        <button
-          onClick={() => setIsOpen(true)}
-          className="fixed top-4 left-4 z-50 p-2.5 bg-white border border-gray-200 shadow-md rounded-xl text-gray-700 hover:bg-amber-50 hover:text-amber-800 transition"
-          title="Tunjukkan Sidebar"
+      {/* Butang Menu Burger Terapung */}
+      <button
+        onClick={() => setIsOpen(true)}
+        className="fixed top-3 left-3 z-40 p-2.5 bg-white/90 backdrop-blur-md border border-gray-200 shadow-sm rounded-xl text-gray-700 hover:bg-amber-50 hover:text-amber-800 transition active:scale-95 cursor-pointer"
+        title="Buka Menu"
+      >
+        <svg
+          className="w-5 h-5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
         >
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 6h16M4 12h16M4 18h16"
-            />
-          </svg>
-        </button>
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M4 6h16M4 12h16M4 18h16"
+          />
+        </svg>
+      </button>
+
+      {/* Latar Malap (Backdrop Overlay) di belakang Sidebar */}
+      {isOpen && (
+        <div
+          onClick={() => setIsOpen(false)}
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 transition-opacity"
+        />
       )}
 
-      {/* Container Utama Sidebar */}
+      {/* Container Utama Sidebar (Bertindih Secara Fixed di Atas Page) */}
       <aside
-        className={`bg-white border-r border-gray-200 shrink-0 h-screen sticky top-0 transition-all duration-300 z-40 ${
-          isOpen ? "w-64" : "w-0 overflow-hidden border-none"
+        className={`fixed top-0 left-0 h-full bg-white shadow-2xl z-50 transition-transform duration-300 ease-in-out w-72 ${
+          isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="p-4 md:p-6 flex flex-col h-full justify-between overflow-y-auto w-64">
-          {/* Bahagian Atas: Logo & Butang Tutup (Hide) */}
-          <div className="flex items-center justify-between mb-6">
-            <Link href="/dashboard">
-              <img
-                src="/favicon.svg"
-                alt="Logo"
-                className="w-12 h-12 object-contain"
-              />
-            </Link>
-            <button
-              onClick={() => setIsOpen(false)}
-              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"
-              title="Sembunyikan Sidebar"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+        <div className="p-5 flex flex-col h-full justify-between overflow-y-auto">
+          {/* Bahagian Atas: Logo & Butang Tutup (X) */}
+          <div>
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100">
+              <Link
+                href="/dashboard"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-3"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M11 19l-7-7 7-7m8 14l-7-7 7-7"
+                <img
+                  src="/favicon.svg"
+                  alt="Logo"
+                  className="w-10 h-10 object-contain"
                 />
-              </svg>
-            </button>
-          </div>
+                <div>
+                  <h1 className="font-black text-slate-900 text-sm leading-tight">
+                    WakMan Catering
+                  </h1>
+                  <p className="text-[10px] text-slate-400 font-medium">
+                    Panel Kawalan Admin
+                  </p>
+                </div>
+              </Link>
+              <button
+                onClick={() => setIsOpen(false)}
+                className="p-2 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition active:scale-95 cursor-pointer"
+                title="Tutup Menu"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
 
-          {/* Bahagian Menu Navigasi */}
-          <div className="space-y-6 flex-1">
-            {NAVIGATION_GROUPS.map((group, idx) => (
-              <div key={idx}>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 px-2">
-                  {group.groupName}
-                </p>
-                <nav className="flex flex-col gap-1">
-                  {group.items.map((item) => {
-                    const isActive = pathname === item.href;
+            {/* Bahagian Menu Navigasi */}
+            <div className="space-y-6">
+              {NAVIGATION_GROUPS.map((group, idx) => (
+                <div key={idx}>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 px-2">
+                    {group.groupName}
+                  </p>
+                  <nav className="flex flex-col gap-1">
+                    {group.items.map((item) => {
+                      const isActive = pathname === item.href;
 
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
-                          isActive
-                            ? "bg-amber-50 text-amber-800 border border-amber-200/60 shadow-2xs font-bold"
-                            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                        }`}
-                      >
-                        <span className="text-base">{item.icon}</span>
-                        <span>{item.label}</span>
-                      </Link>
-                    );
-                  })}
-                </nav>
-              </div>
-            ))}
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => setIsOpen(false)} // Tutup automatik bila pautan ditekan
+                          className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
+                            isActive
+                              ? "bg-amber-50 text-amber-900 border border-amber-200/60 shadow-xs font-bold"
+                              : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                          }`}
+                        >
+                          <span className="text-base">{item.icon}</span>
+                          <span>{item.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </nav>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Info Perniagaan di bahagian bawah Sidebar */}
           <div className="pt-4 mt-6 border-t border-gray-100 shrink-0">
-            <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-100 text-xs space-y-0.5">
+            <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-100/80 text-xs space-y-0.5">
               <p className="font-bold text-amber-900">WakMan Catering</p>
               <p className="text-[10px] text-amber-700/80">
                 Sistem Pentadbiran & Operasi

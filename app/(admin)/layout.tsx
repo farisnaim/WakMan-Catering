@@ -10,17 +10,19 @@ export default function AdminLayout({
 }) {
   return (
     <PinGate>
-      <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
+      <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800 antialiased">
         {/* Top Navbar Statik */}
         <AdminNavbar />
 
         {/* Bahagian Bawah (Sidebar + Main Content) */}
-        <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-          {/* Sidebar Statik */}
+        <div className="flex-1 flex flex-col md:flex-row min-w-0 w-full">
+          {/* Sidebar */}
           <AdminSidebar />
 
-          {/* Hanya kawasan kandungan ini yang akan diskrol */}
-          <main className="flex-1 p-4 md:p-6 overflow-y-auto">{children}</main>
+          {/* Kawasan Utama (Main Content) - Boleh skrol dan responsif pada skrin kecil */}
+          <main className="flex-1 w-full min-w-0 p-4 sm:p-6 md:p-8 overflow-y-auto">
+            <div className="max-w-7xl mx-auto space-y-6">{children}</div>
+          </main>
         </div>
 
         {/* Butang Tindakan Pantas Terapung */}

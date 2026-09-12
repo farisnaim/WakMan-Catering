@@ -15,9 +15,10 @@ interface CustomerProfile {
 interface UserInvoice {
   id: number;
   invoice_number: string;
-  issue_date: string | null;
+  invoice_date: string | null;
   status: string;
   total_amount: number;
+  slug?: string;
 }
 
 export default function PublicLandingPage() {
@@ -67,10 +68,10 @@ export default function PublicLandingPage() {
 
       setCustomer(customerData);
 
-      // 2. Ambil senarai invois pelanggan ini
+      // 2. Ambil senarai invois pelanggan ini (Gunakan invoice_date gantikan issue_date)
       const { data: invoiceData, error: invError } = await supabase
         .from("invoices")
-        .select("id, invoice_number, issue_date, status, total_amount")
+        .select("id, invoice_number, invoice_date, status, total_amount, slug")
         .eq("customer_id", customerData.id)
         .order("created_at", { ascending: false });
 
@@ -279,7 +280,7 @@ export default function PublicLandingPage() {
                                 {inv.invoice_number}
                               </td>
                               <td className="p-4 text-slate-400">
-                                {inv.issue_date || "-"}
+                                {inv.invoice_date || "-"}
                               </td>
                               <td className="p-4">
                                 <span
@@ -295,7 +296,7 @@ export default function PublicLandingPage() {
                               </td>
                               <td className="p-4 text-center">
                                 <Link
-                                  href={`/inv/${inv.invoice_number}`}
+                                  href={`/inv/${inv.slug || inv.invoice_number}`}
                                   className="inline-block px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-slate-950 border border-amber-500/20 font-bold text-[11px] rounded-xl transition"
                                 >
                                   Lihat →

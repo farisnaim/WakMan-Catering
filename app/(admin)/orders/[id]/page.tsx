@@ -30,7 +30,7 @@ export default function OrderDetailPage({
   const [items, setItems] = useState<QuotationItem[]>([]);
   const [depositPaid, setDepositPaid] = useState<number>(0);
   const [notes, setNotes] = useState(
-    "Terima kasih atas tempahan anda. Sebarang pertanyaan sila hubungi pihak kami.",
+    "Terima kasih atas tempahan anda. Sebarang pertanyaan sila hubungi pihak kami. Harga dan ketetapan quotation ini hanya terpakai untuk 30 hari sahaja dari tarikh sebut harga dikeluarkan.",
   );
 
   useEffect(() => {

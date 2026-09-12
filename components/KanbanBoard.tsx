@@ -18,22 +18,22 @@ interface Column {
 const COLUMNS: Column[] = [
   {
     id: "pending",
-    title: "Pending / Baru",
+    title: "Tempahan Baharu",
     color: "border-amber-400 bg-amber-50/50",
   },
   {
     id: "processing",
-    title: "Processing / Disahkan",
+    title: "Berlangsung / on-Going",
     color: "border-blue-400 bg-blue-50/50",
   },
   {
     id: "completed",
-    title: "Completed / Selesai",
+    title: "Selesai",
     color: "border-emerald-400 bg-emerald-50/50",
   },
   {
     id: "cancelled",
-    title: "Cancelled / Batal",
+    title: "Batal",
     color: "border-rose-400 bg-rose-50/50",
   },
 ];

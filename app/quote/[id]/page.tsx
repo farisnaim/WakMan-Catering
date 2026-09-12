@@ -171,21 +171,34 @@ export default function PublicQuotationPage({
         <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-10 shadow-sm space-y-8 print:border-none print:shadow-none print:p-0 print:rounded-none">
           {/* Header Utama */}
           <div className="flex flex-col sm:flex-row justify-between items-start gap-6 border-b border-slate-100 pb-6">
+            <div>
+              <img
+                src="/favicon.svg"
+                alt="logo wakman"
+                className="w-24 h-24 object-contain"
+              />
+            </div>
             <div className="space-y-1">
               <h2 className="text-lg font-black text-slate-900 tracking-tight">
-                AYAM PANGGANG CATERING
+                KAMARUZAMAN ZAINUDDIN
               </h2>
               <p className="text-xs text-slate-500">
                 Perkhidmatan Katering & Tempahan Acara
               </p>
+              <p className="text-xs font-mono font-bold text-slate-500">
+                202103208150 (CT0091538-M)
+              </p>
               <p className="text-xs font-mono text-slate-500">
-                Hubungi: +60 12-345 6789
+                ☎️ Admin: 010 306 8294
+              </p>
+              <p className="text-xs font-mono text-slate-500">
+                📞 WakMan: 019 645 6542
               </p>
             </div>
 
             <div className="sm:text-right space-y-1">
               <h1 className="text-2xl font-black uppercase text-blue-600 tracking-wider">
-                SEBUT HARGA
+                QUOTATION
               </h1>
               <p className="text-xs font-mono font-bold text-slate-800">
                 #ORD-{quotation.id.toString().padStart(4, "0")}
@@ -320,6 +333,11 @@ export default function PublicQuotationPage({
             <p className="font-medium">
               Sebut harga ini adalah anggaran dan tertakluk kepada pengesahan
               tempahan.
+            </p>
+            <p>
+              Sebut Harga ini hanya tertakluk kepada 2 pihak sahaja iaitu antara
+              pihak WakMan Catering dan pihak pelanggan. Tidak terguna pakai
+              untuk pihak ketiga.
             </p>
             <p>Sila hubungi pihak kami untuk mengesahkan tempahan anda.</p>
           </div>

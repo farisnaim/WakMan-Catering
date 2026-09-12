@@ -153,11 +153,15 @@ export default function InvoicesPage() {
     // URL Gambar QR Payment dalam folder public (Tukar nama fail mengikut keperluan)
     const qrUrl = `${origin}/qr-duitnow-template.png`;
 
-    const message = `Salam / Hai *${inv.customers?.customer_name || "Pelanggan"}*,\n\nInvois anda *#${
+    const message = `Assalamualaikum dan Salam Sejahtera \nTuan/Puan *${inv.customers?.customer_name || "Pelanggan"}*,\n\nInvois anda *#${
       inv.invoice_number || inv.id
     }* telah diterbitkan.\n\n*JUMLAH PERLU DIBAYAR:* ${formatRM(
       Number(inv.total_amount),
-    )}\n\n📄 *Lihat Invois Penuh:* ${invoiceUrl}\n📱 *Imbas QR Bayaran:* ${qrUrl}\n\nSila buat bayaran sebelum tarikh matang. Terima kasih!`;
+    )}\n\nUntuk melihat invois secara penuh, Tuan Puan boleh rujuk pautan di bawah:\n\n📄 *Lihat Invois Penuh:* ${invoiceUrl}\n\n📱 *Paparan QR DuitNow:* ${qrUrl}\n\nSila buat bayaran sebelum tarikh yang ditetapkan. Terima kasih!
+    
+    _*WakMan, sedap bagitahu kawan, tak sedap bagitahu kami.🤙*_
+    
+    *Ingat Catering, Ingat WakMan Catering*`;
 
     const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
       message,

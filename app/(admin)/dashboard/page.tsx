@@ -192,7 +192,9 @@ export default function DashboardPage() {
       {/* Tajuk Utama */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-900">Papan Pemuka</h1>
+          <h1 className="text-2xl font-black text-slate-900">
+            Dashboard Utama
+          </h1>
           <p className="text-xs text-slate-500">
             Ringkasan prestasi perniagaan, tempahan, dan status invois.
           </p>
@@ -212,7 +214,7 @@ export default function DashboardPage() {
         {/* Jumlah Hasil Jualan */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
           <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-            Jumlah Jualan (Orders)
+            Jumlah Tempahan (Orders)
           </p>
           <p className="text-2xl font-black text-slate-900">
             {formatRM(stats.totalRevenue)}
@@ -231,7 +233,7 @@ export default function DashboardPage() {
             {formatRM(stats.pendingDeposit)}
           </p>
           <p className="text-[10px] text-slate-500">
-            Deposit yang telah dibayar
+            Deposit yang telah diterima
           </p>
         </div>
 
@@ -360,7 +362,7 @@ export default function DashboardPage() {
                   <tr className="border-b border-slate-100 text-slate-400 font-bold uppercase text-[10px]">
                     <th className="pb-2">No. Invois</th>
                     <th className="pb-2">Pelanggan</th>
-                    <th className="pb-2 text-right">Baki Terhutang</th>
+                    <th className="pb-2 text-right">Baki </th>
                     <th className="pb-2 text-center">Status</th>
                   </tr>
                 </thead>

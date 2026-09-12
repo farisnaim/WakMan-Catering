@@ -118,7 +118,7 @@ export default function KanbanBoardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-black text-slate-900">
-            Interactive Kanban Board
+            Status Tempahan
           </h1>
           <p className="text-xs text-slate-500">
             Tarik dan lepas (*Drag & Drop*) kad untuk kemaskini status tempahan

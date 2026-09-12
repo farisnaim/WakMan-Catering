@@ -111,10 +111,10 @@ export default function KanbanCard({
           onChange={(e) => onStatusChange(order.id, e.target.value)}
           className="text-[10px] font-bold px-2 py-1 bg-slate-100 border border-slate-200 rounded-lg focus:outline-none flex-1 cursor-pointer disabled:opacity-50"
         >
-          <option value="pending">Move to Pending</option>
-          <option value="processing">Move to Processing</option>
-          <option value="completed">Move to Completed</option>
-          <option value="cancelled">Move to Cancelled</option>
+          <option value="pending">Tempahan Baharu</option>
+          <option value="processing">on-going</option>
+          <option value="completed">Selesai</option>
+          <option value="cancelled">Batal</option>
         </select>
 
         <button
@@ -122,13 +122,13 @@ export default function KanbanCard({
           title="Hantar WhatsApp"
           className="p-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs transition cursor-pointer"
         >
-          💬
+          💭
         </button>
 
         <Link
           href={`/orders/${order.id}`}
           className="p-1.5 bg-slate-900 hover:bg-blue-600 text-white rounded-lg text-xs transition"
-          title="Sunting Tempahan"
+          title="Edit Tempahan"
         >
           ✏️
         </Link>

@@ -203,16 +203,29 @@ export default function PublicInvoicePage({
         {/* KAD DOKUMEN INVOIS */}
         <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-10 shadow-sm space-y-8 print:border-none print:shadow-none print:p-0 print:rounded-none">
           {/* Header Utama */}
-          <div className="flex flex-col sm:flex-row justify-between items-start gap-6 border-b border-slate-100 pb-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start gap-8 border-b border-slate-100 pb-6">
+            <div>
+              <img
+                src="/favicon.svg"
+                alt="logo wakman"
+                className="w-24 h-24 object-contain"
+              />
+            </div>
             <div className="space-y-1">
               <h2 className="text-lg font-black text-slate-900 tracking-tight">
-                AYAM PANGGANG CATERING
+                KAMARUZAMAN ZAINUDDIN
               </h2>
               <p className="text-xs text-slate-500">
-                Perkhidmatan Katering & Tempahan Acara
+                Perkhidmatan Catering & Tempahan Makanan Secara Korporat
+              </p>
+              <p className="text-xs font-mono font-bold text-slate-500">
+                202103208150 (CT0091538-M)
               </p>
               <p className="text-xs font-mono text-slate-500">
-                Hubungi: +60 12-345 6789
+                ☎️ Admin: 010 306 8294
+              </p>
+              <p className="text-xs font-mono text-slate-500">
+                📞 WakMan: 019 645 6542
               </p>
             </div>
 
@@ -229,7 +242,7 @@ export default function PublicInvoicePage({
                   {invoice.invoice_date || "-"}
                 </p>
                 <p>
-                  <strong className="text-slate-700">Tarikh Matang:</strong>{" "}
+                  <strong className="text-slate-700"> Bayar Sebelum :</strong>{" "}
                   {invoice.due_date || "-"}
                 </p>
               </div>

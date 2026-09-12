@@ -352,10 +352,10 @@ export default function NewOrderPage() {
                 onChange={(e) => setStatus(e.target.value)}
                 className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-blue-600 bg-slate-50/30 font-bold"
               >
-                <option value="pending">Pending</option>
-                <option value="processing">Processing / Confirmed</option>
-                <option value="completed">Completed</option>
-                <option value="cancelled">Cancelled</option>
+                <option value="pending">Tempahan Baharu</option>
+                <option value="processing">on-Going</option>
+                <option value="completed">Selesai</option>
+                <option value="cancelled">Batal</option>
               </select>
             </div>
 
@@ -366,7 +366,7 @@ export default function NewOrderPage() {
               </label>
               <textarea
                 rows={6}
-                placeholder="Tampal (paste) teks perbualan WhatsApp / senarai menu / sebut harga di sini...&#10;&#10;Contoh:&#10;- Pakej Ayam Panggang 100 Pax&#10;- Lokasi: Dewan Seri Mawar&#10;- Nota Tambahan: Kurangkan pedas"
+                placeholder="Tampal (paste) teks perbualan WhatsApp / senarai menu / sebut harga di sini...&#10;&#10;Contoh:&#10;- Pakej Simpulan Kasih 100 Pax&#10;- Lokasi: Dewan Seri Mawar&#10;- Nota Tambahan: Kurangkan pedas"
                 value={orderDetails}
                 onChange={(e) => setOrderDetails(e.target.value)}
                 className="w-full px-4 py-3 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-blue-600 bg-slate-50/30 leading-relaxed font-sans"

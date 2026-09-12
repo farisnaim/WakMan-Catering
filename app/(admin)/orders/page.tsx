@@ -106,16 +106,19 @@ export default function OrdersPage() {
     // Binaan URL Awam untuk Quotation
     const quoteUrl = `${window.location.origin}/quote/${order.id}`;
 
-    const message = `Salam & Salam Sejahtera *${customerName}*,
+    const message = `Assalamualaikum & Salam Sejahtera
+    Tuan/Puan *${customerName}*,
 
 Berikut disediakan pautan rasmi *SEBUT HARGA / QUOTATION* bagi tempahan anda (${orderNo}):
 
 💰 *Anggaran Jumlah: RM ${totalPrice}*
-🔗 *Pautan Sebut Harga:* ${quoteUrl}
+🔗 *Pautan Dokumen Quotation:* ${quoteUrl}
 
 Anda boleh menekan pautan di atas untuk melihat maklumat terperinci serta memuat turun / mencetak dokumen sebut harga dalam bentuk PDF.
 
-Terima kasih! 🙏🏼`;
+Terima kasih! 🙏🏼
+
+Sebarang persoalan boleh hubungi kami di talian : 010 306 8294`;
 
     const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `https://wa.me/${phone}?text=${encodedMessage}`;
@@ -127,25 +130,25 @@ Terima kasih! 🙏🏼`;
       case "completed":
         return (
           <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold rounded-lg uppercase">
-            Completed
+            Selesai
           </span>
         );
       case "processing":
         return (
           <span className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold rounded-lg uppercase">
-            Processing
+            on-Going
           </span>
         );
       case "cancelled":
         return (
           <span className="px-2 py-0.5 bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold rounded-lg uppercase">
-            Cancelled
+            Batal
           </span>
         );
       default:
         return (
           <span className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold rounded-lg uppercase">
-            Pending
+            Tempahan Baharu
           </span>
         );
     }
