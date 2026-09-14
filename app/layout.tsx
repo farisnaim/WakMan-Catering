@@ -7,7 +7,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ms">
-      <body>{children}</body>
+      <body className="antialiased min-h-screen">
+        {/* Main Wrapper dengan pt-24/pt-28 supaya kandungan tidak tertutup di bawah Navbar */}
+        <main className="pt-24 sm:pt-28 pb-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {children}
+        </main>
+      </body>
     </html>
   );
 }

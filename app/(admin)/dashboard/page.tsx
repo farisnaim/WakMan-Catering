@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import PushNotificationManager from "@/components/PushNotificationManager";
 
 interface DashboardStats {
   totalCustomers: number;
@@ -209,6 +210,8 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          {/* Komponen Notifikasi diletakkan di sini */}
+          <PushNotificationManager />
           <Link
             href="/orders/new"
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition"

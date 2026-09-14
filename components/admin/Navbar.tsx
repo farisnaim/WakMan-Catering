@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import NotificationBell from "@/components/NotificationBell";
 
 export default function AdminNavbar() {
   const router = useRouter();
@@ -14,11 +15,9 @@ export default function AdminNavbar() {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
 
-      // Jika scroll ke bawah lebih dari 10px, sembunyikan Navbar
       if (currentScrollY > lastScrollY && currentScrollY > 60) {
         setIsVisible(false);
       } else {
-        // Jika scroll ke atas, munculkan semula Navbar
         setIsVisible(true);
       }
 
@@ -32,20 +31,19 @@ export default function AdminNavbar() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
-
-    // Menghantar kata kunci ke halaman senarai tempahan
     router.push(`/orders?search=${encodeURIComponent(searchQuery.trim())}`);
   };
 
   return (
+    // Ditambah padding p-3 sm:p-4 di sekeliling header untuk elak bertindih
     <header
-      className={`fixed top-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-b border-gray-200 transition-transform duration-300 ease-in-out ${
+      className={`fixed top-0 left-0 right-0 z-30 p-3 sm:p-4 transition-transform duration-300 ease-in-out ${
         isVisible ? "translate-y-0" : "-translate-y-full"
       }`}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 bg-white/95 backdrop-blur-md border border-gray-200 shadow-sm rounded-2xl">
         <div className="flex items-center justify-between h-16 gap-3">
-          {/* Logo & Penjenamaan (Diberi ruang pl-12 di mobile supaya tidak bertindih dengan butang Burger) */}
+          {/* Logo & Penjenamaan */}
           <div className="flex items-center gap-3 pl-12 sm:pl-0">
             <Link href="/dashboard" className="flex items-center gap-2.5">
               <img
@@ -63,6 +61,8 @@ export default function AdminNavbar() {
               </div>
             </Link>
           </div>
+
+          <NotificationBell />
 
           {/* Bar Carian Global */}
           <form onSubmit={handleSearch} className="flex-1 max-w-xs md:max-w-md">
