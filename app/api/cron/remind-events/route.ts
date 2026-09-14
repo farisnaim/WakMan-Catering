@@ -198,6 +198,12 @@ export async function GET(request: Request) {
       </div>
     `;
 
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      throw new Error(
+        "EMAIL_USER atau EMAIL_PASS tidak ditemui dalam Environment Variables.",
+      );
+    }
+
     // 6. Konfigurasi Nodemailer
     const transporter = nodemailer.createTransport({
       service: "gmail",
