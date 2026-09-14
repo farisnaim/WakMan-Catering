@@ -18,6 +18,7 @@ const NAVIGATION_GROUPS: NavGroup[] = [
     groupName: "Utama",
     items: [
       { label: "Dashboard", href: "/dashboard", icon: "📊" },
+      { label: "Kalendar Majlis", href: "/calendar", icon: "📅" },
       { label: "Papan Kanban", href: "/board", icon: "📋" },
     ],
   },
