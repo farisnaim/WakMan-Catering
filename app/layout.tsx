@@ -7,11 +7,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ms">
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href="/favicon.svg" />
+        <meta name="theme-color" content="#2563eb" />
+      </head>
       <body className="antialiased min-h-screen">
-        {/*  */}
-        <main className="pt-24 sm:pt-28 pb-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {children}
-        </main>
+        {/* Tiada padding-top atau max-w di sini, sesuai untuk Landing Page */}
+        {children}
       </body>
     </html>
   );
