@@ -62,8 +62,6 @@ export default function AdminNavbar() {
             </Link>
           </div>
 
-          <NotificationBell />
-
           {/* Bar Carian Global */}
           <form onSubmit={handleSearch} className="flex-1 max-w-xs md:max-w-md">
             <div className="relative">
@@ -79,6 +77,8 @@ export default function AdminNavbar() {
               />
             </div>
           </form>
+
+          <NotificationBell />
 
           {/* Indikator Status & Profil */}
           <div className="flex items-center gap-3">
