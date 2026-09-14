@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -7,7 +8,7 @@ import interactionPlugin from "@fullcalendar/interaction";
 
 interface CalendarClientProps {
   dateClick: (arg: any) => void;
-  dayCellContent: (dayInfo: any) => JSX.Element;
+  dayCellContent: (dayInfo: any) => React.ReactNode; // Gantikan JSX.Element kepada React.ReactNode
 }
 
 export default function CalendarClient({
