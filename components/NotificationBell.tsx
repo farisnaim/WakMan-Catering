@@ -103,7 +103,7 @@ export default function NotificationBell() {
                 padding: "16px",
                 color: "#64748b",
                 fontSize: "13px",
-                textCenter: "center",
+                textAlign: "center",
               }}
             >
               Tiada notifikasi.
