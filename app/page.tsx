@@ -47,10 +47,8 @@ export default function PublicLandingPage() {
     setHasSearched(true);
 
     try {
-      // Clean phone input
       const cleanedPhone = phoneSearch.trim();
 
-      // 1. Cari pelanggan berdasarkan nombor telefon
       const { data: customerData, error: custError } = await supabase
         .from("customers")
         .select("id, customer_name, customer_phone, address1, address2")
@@ -68,7 +66,6 @@ export default function PublicLandingPage() {
 
       setCustomer(customerData);
 
-      // 2. Ambil senarai invois pelanggan ini (Gunakan invoice_date gantikan issue_date)
       const { data: invoiceData, error: invError } = await supabase
         .from("invoices")
         .select("id, invoice_number, invoice_date, status, total_amount, slug")
@@ -111,8 +108,12 @@ export default function PublicLandingPage() {
       <header className="border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500 flex items-center justify-center font-black text-slate-950 text-xl shadow-lg shadow-amber-500/20">
-              W
+            <div className="w-10 h-10 rounded-2xl bg-[#FEFEFA] flex items-center justify-center font-black text-slate-950 text-xl shadow-lg shadow-amber-500/20">
+              <img
+                src="/favicon.svg"
+                alt="logo wakman"
+                className="w-12 h-12 object-contain"
+              />
             </div>
             <div>
               <span className="font-black tracking-tight text-lg sm:text-xl text-white block leading-none">
@@ -151,24 +152,30 @@ export default function PublicLandingPage() {
           </div>
 
           <h1 className="text-4xl sm:text-6xl font-black text-white tracking-tight leading-tight">
-            Citarasa Tradisi & <br />
+            Citarasa Tempatan & <br />
             <span className="bg-gradient-to-r from-amber-400 via-orange-400 to-amber-200 bg-clip-text text-transparent">
               Perkhidmatan Katering Terbaik
             </span>
           </h1>
 
           <p className="max-w-2xl mx-auto text-slate-400 text-sm sm:text-base leading-relaxed">
-            Menyediakan hidangan enak dan segar untuk sebarang majlis
+            Menyediakan hidangan yang sedap dan segar untuk sebarang majlis
             kesyukuran, perkahwinan, korporat, dan acara peribadi anda.
           </p>
 
-          <div className="pt-2 flex justify-center">
+          <div className="pt-2 flex flex-wrap justify-center gap-3">
             <a
               href="#semak-invois"
               className="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-amber-500/20 transition"
             >
               Semak Invois Anda
             </a>
+            <Link
+              href="/pencarian-pramusaji"
+              className="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 font-bold text-xs uppercase tracking-wider rounded-xl transition"
+            >
+              Sertai Kami (Pramusaji)
+            </Link>
           </div>
         </section>
 
@@ -191,7 +198,6 @@ export default function PublicLandingPage() {
               </p>
             </div>
 
-            {/* Borang Carian Nombor Telefon */}
             <form
               onSubmit={handleSearchInvoice}
               className="max-w-md mx-auto space-y-3"
@@ -215,17 +221,14 @@ export default function PublicLandingPage() {
               </div>
             </form>
 
-            {/* Mesej Ralat */}
             {searchError && (
               <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-xs text-rose-400 text-center font-medium">
                 {searchError}
               </div>
             )}
 
-            {/* Keputusan Carian */}
             {customer && (
               <div className="space-y-6 pt-4 border-t border-slate-800/80">
-                {/* Maklumat Profil Pelanggan */}
                 <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800/80 space-y-2">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 block">
                     Profil Pelanggan
@@ -248,7 +251,6 @@ export default function PublicLandingPage() {
                   </div>
                 </div>
 
-                {/* Jadual Invois */}
                 <div className="space-y-3">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
                     Senarai Invois ({invoices.length})
@@ -314,31 +316,70 @@ export default function PublicLandingPage() {
           </div>
         </section>
 
+        {/* BANNER KHAS REKRUT PRAMUSAJI */}
+        <section className="max-w-4xl mx-auto px-4 sm:px-6">
+          <div className="bg-gradient-to-r from-amber-500/10 via-slate-900 to-slate-900 border border-amber-500/20 rounded-3xl p-8 flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
+            <div className="space-y-2">
+              <span className="text-xs font-bold uppercase tracking-widest text-amber-400">
+                Peluang Kerjaya Sambilan
+              </span>
+              <h3 className="text-2xl font-black text-white">
+                Berminat Sertai Krew Pramusaji / Penanggah?
+              </h3>
+              <p className="text-xs text-slate-400 max-w-xl">
+                Sertai pasukan katering kami untuk menjayakan pelbagai majlis.
+                Jom daftar sekarang.
+              </p>
+            </div>
+            <Link
+              href="/pencarian-pramusaji"
+              className="px-6 py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg shadow-amber-500/20 shrink-0 transition"
+            >
+              Isi Borang Sekarang →
+            </Link>
+          </div>
+        </section>
+
         {/* VIDEO & GALERI MAJLIS */}
         <section className="max-w-6xl mx-auto px-6 space-y-8">
           <div className="text-center space-y-2">
             <span className="text-xs font-bold uppercase tracking-widest text-amber-400">
               Galeri & Video
             </span>
+
             <h2 className="text-2xl font-black text-white">
               Suasana & Persediaan Majlis
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="aspect-video bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden relative flex items-center justify-center">
-              <span className="text-xs text-slate-500 font-mono">
-                [ Ruang Video Highlights Katering / YouTube Embed ]
-              </span>
+          <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
+            {" "}
+            {/*grid cols tu tukar nak berapa column */}
+            <div className="w-full max-w-sm mx-auto aspect-[9/16] overflow-hidden rounded-xl bg-black">
+              <video
+                className="w-full h-full object-contain"
+                autoPlay
+                muted
+                loop
+                controls
+                playsInline
+                preload="metadata"
+              >
+                <source src="/ads.MP4" type="video/mp4" />
+                video tak support
+              </video>
             </div>
+          </div>
+        </section>
 
+        {/*
             <div className="aspect-video bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden relative flex items-center justify-center">
               <span className="text-xs text-slate-500 font-mono">
                 [ Ruang Video Dokumentasi Majlis / TikTok Embed ]
               </span>
             </div>
           </div>
-        </section>
+        */}
 
         {/* FEEDBACK & TESTIMONI PELANGGAN */}
         <section className="max-w-6xl mx-auto px-6 space-y-8">

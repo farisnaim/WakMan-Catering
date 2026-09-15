@@ -30,6 +30,12 @@ const NAVIGATION_GROUPS: NavGroup[] = [
     ],
   },
   {
+    groupName: "Pengurusan Krew",
+    items: [
+      { label: "Senarai Pramusaji", href: "/dashboard/waiters", icon: "👥" },
+    ],
+  },
+  {
     groupName: "Pelanggan & Kewangan",
     items: [
       { label: "Senarai Pelanggan", href: "/customers", icon: "👥" },
@@ -42,7 +48,6 @@ const NAVIGATION_GROUPS: NavGroup[] = [
 
 export default function AdminSidebar() {
   const pathname = usePathname();
-  // Setkan default kepada false supaya tersorok secara asal
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -68,7 +73,7 @@ export default function AdminSidebar() {
         </svg>
       </button>
 
-      {/* Latar Malap (Backdrop Overlay) di belakang Sidebar */}
+      {/* Latar Malap (Backdrop Overlay) */}
       {isOpen && (
         <div
           onClick={() => setIsOpen(false)}
@@ -76,15 +81,15 @@ export default function AdminSidebar() {
         />
       )}
 
-      {/* Container Utama Sidebar (Bertindih Secara Fixed di Atas Page) */}
+      {/* Container Utama Sidebar */}
       <aside
         className={`fixed top-0 left-0 h-full bg-white shadow-2xl z-50 transition-transform duration-300 ease-in-out w-72 ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         <div className="p-5 flex flex-col h-full justify-between overflow-y-auto">
-          {/* Bahagian Atas: Logo & Butang Tutup (X) */}
           <div>
+            {/* Header Sidebar */}
             <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100">
               <Link
                 href="/dashboard"
@@ -126,7 +131,7 @@ export default function AdminSidebar() {
               </button>
             </div>
 
-            {/* Bahagian Menu Navigasi */}
+            {/* Menu Navigasi */}
             <div className="space-y-6">
               {NAVIGATION_GROUPS.map((group, idx) => (
                 <div key={idx}>
@@ -141,7 +146,7 @@ export default function AdminSidebar() {
                         <Link
                           key={item.href}
                           href={item.href}
-                          onClick={() => setIsOpen(false)} // Tutup automatik bila pautan ditekan
+                          onClick={() => setIsOpen(false)}
                           className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
                             isActive
                               ? "bg-amber-50 text-amber-900 border border-amber-200/60 shadow-xs font-bold"
@@ -159,7 +164,7 @@ export default function AdminSidebar() {
             </div>
           </div>
 
-          {/* Info Perniagaan di bahagian bawah Sidebar */}
+          {/* Info Perniagaan Bawah Sidebar */}
           <div className="pt-4 mt-6 border-t border-gray-100 shrink-0">
             <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-100/80 text-xs space-y-0.5">
               <p className="font-bold text-amber-900">WakMan Catering</p>
