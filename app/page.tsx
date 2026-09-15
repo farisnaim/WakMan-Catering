@@ -111,7 +111,7 @@ export default function PublicLandingPage() {
             <div className="w-10 h-10 rounded-2xl bg-[#FEFEFA] flex items-center justify-center font-black text-slate-950 text-xl shadow-lg shadow-amber-500/20">
               <img
                 src="/favicon.svg"
-                alt="logo wakman"
+                alt="logo wakman catering"
                 className="w-12 h-12 object-contain"
               />
             </div>
