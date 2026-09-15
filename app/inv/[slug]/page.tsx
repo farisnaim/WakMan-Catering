@@ -64,7 +64,6 @@ export default function PublicInvoicePage({
     setErrorMessage(null);
 
     try {
-      // 1. Ambil data invois sahaja dahulu untuk mengelakkan ralat 'embed/relationship' Supabase
       let query = supabase.from("invoices").select("*");
 
       const isNumeric = /^\d+$/.test(slugParam);
@@ -79,7 +78,6 @@ export default function PublicInvoicePage({
       const { data: invData, error: invError } = await query.single();
       if (invError || !invData) throw invError;
 
-      // 2. Ambil data pelanggan secara berasingan sekiranya customer_id wujud
       let customerData: CustomerData | null = null;
       if (invData.customer_id) {
         const { data: custData } = await supabase
@@ -93,7 +91,6 @@ export default function PublicInvoicePage({
         }
       }
 
-      // 3. Gabungkan maklumat invois bersama data pelanggan
       setInvoice({
         ...invData,
         customers: customerData,
@@ -169,247 +166,270 @@ export default function PublicInvoicePage({
     Number(invoice.balance_due ?? invoice.balanced_due) ??
     Math.max(0, totalAmount - paidAmount);
 
-  // Normalisasi items_data (JSONB)
   const itemsList = Array.isArray(invoice.items_data) ? invoice.items_data : [];
 
   return (
-    <div className="min-h-screen bg-slate-100/70 py-8 px-4 sm:px-6 print:bg-white print:p-0">
-      <div className="max-w-3xl mx-auto space-y-4">
-        {/* BAR TINDAKAN (Disorokkan semasa cetak) */}
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm print:hidden">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-600">
-              Status Bayaran:
-            </span>
-            <span
-              className={`px-3 py-1 border rounded-full text-[10px] font-bold uppercase tracking-wider ${getStatusBadge(
-                invoice.status,
-              )}`}
-            >
-              {invoice.status}
-            </span>
-          </div>
+    <>
+      {/* TETAPAN CSS KHAS UNTUK CETAKAN A4 */}
+      <style jsx global>{`
+        @media print {
+          @page {
+            size: A4 portrait;
+            margin: 10mm;
+          }
+          body {
+            background-color: #ffffff !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .no-print {
+            display: none !important;
+          }
+        }
+      `}</style>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <button
-              onClick={handlePrint}
-              className="w-full sm:w-auto px-4 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 active:scale-95 rounded-xl transition shadow-sm flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <span>🖨️</span> Cetak / Simpan PDF
-            </button>
-          </div>
-        </div>
-
-        {/* KAD DOKUMEN INVOIS */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-10 shadow-sm space-y-8 print:border-none print:shadow-none print:p-0 print:rounded-none">
-          {/* Header Utama */}
-          <div className="flex flex-col sm:flex-row justify-between items-start gap-8 border-b border-slate-100 pb-6">
-            <div>
-              <img
-                src="/favicon.svg"
-                alt="logo wakman"
-                className="w-24 h-24 object-contain"
-              />
-            </div>
-            <div className="space-y-1">
-              <h2 className="text-lg font-black text-slate-900 tracking-tight">
-                KAMARUZAMAN ZAINUDDIN
-              </h2>
-              <p className="text-xs text-slate-500">Perkhidmatan Catering &</p>
-              <p className="text-xs text-slate-500">
-                Tempahan Makanan Secara Korporat
-              </p>
-              <p className="text-xs font-mono font-bold text-slate-500">
-                202103208150 (CT0091538-M)
-              </p>
-              <p className="text-xs font-mono text-slate-500">
-                ☎️ Admin: 010 306 8294
-              </p>
-              <p className="text-xs font-mono text-slate-500">
-                📞 WakMan: 019 645 6542
-              </p>
-            </div>
-
-            <div className="sm:text-right space-y-1">
-              <h1 className="text-2xl font-black uppercase text-blue-600 tracking-wider">
-                INVOIS
-              </h1>
-              <p className="text-xs font-mono font-bold text-slate-800">
-                #{invoice.invoice_number}
-              </p>
-              <div className="text-[11px] text-slate-500 pt-1 space-y-0.5">
-                <p>
-                  <strong className="text-slate-700">Tarikh Invois:</strong>{" "}
-                  {invoice.invoice_date || "-"}
-                </p>
-                <p>
-                  <strong className="text-slate-700"> Bayar Sebelum :</strong>{" "}
-                  {invoice.due_date || "-"}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Maklumat Pelanggan */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-xs bg-slate-50/50 p-4 rounded-xl border border-slate-100 print:bg-transparent print:p-0 print:border-none">
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                Ditujukan Kepada:
+      <div className="min-h-screen bg-slate-100/70 py-8 px-4 sm:px-6 print:bg-white print:p-0 print:min-h-0">
+        <div className="max-w-3xl mx-auto space-y-4 print:max-w-none print:w-full print:m-0">
+          {/* BAR TINDAKAN (Disorokkan semasa cetak) */}
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm print:hidden no-print">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-600">
+                Status Bayaran:
               </span>
-              <p className="font-bold text-slate-900 text-sm">
-                {invoice.customers?.customer_name || "Pelanggan Tanpa Nama"}
-              </p>
-              <p className="font-mono text-slate-600">
-                No. Tel: {invoice.customers?.customer_phone || "-"}
-              </p>
-              {(invoice.customers?.address1 || invoice.customers?.address2) && (
-                <p className="text-slate-500 pt-0.5">
-                  {invoice.customers?.address1}
-                  {invoice.customers?.address2 &&
-                    `, ${invoice.customers?.address2}`}
-                </p>
-              )}
+              <span
+                className={`px-3 py-1 border rounded-full text-[10px] font-bold uppercase tracking-wider ${getStatusBadge(
+                  invoice.status,
+                )}`}
+              >
+                {invoice.status}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                onClick={handlePrint}
+                className="w-full sm:w-auto px-4 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 active:scale-95 rounded-xl transition shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>🖨️</span> Cetak / Simpan PDF
+              </button>
             </div>
           </div>
 
-          {/* Senarai Perkhidmatan */}
-          <div className="space-y-3">
-            <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              Pecahan Perkhidmatan & Caj
-            </h3>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="bg-slate-100/80 border-y border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
-                    <th className="py-2.5 px-3 w-10 text-center">#</th>
-                    <th className="py-2.5 px-3">Keterangan Item</th>
-                    <th className="py-2.5 px-3 text-center w-20">Kuantiti</th>
-                    <th className="py-2.5 px-3 text-right w-28">Harga Unit</th>
-                    <th className="py-2.5 px-3 text-right w-28">Jumlah</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {itemsList.length > 0 ? (
-                    itemsList.map((item, idx) => {
-                      const name =
-                        item.item_name || item.name || "Perkhidmatan Katering";
-                      const qty = Number(item.quantity || item.qty || 1);
-                      const unitPrice = Number(
-                        item.unit_price || item.price || 0,
-                      );
-                      const itemTotal = Number(
-                        item.total_price || item.amount || qty * unitPrice,
-                      );
-
-                      return (
-                        <tr key={item.id || idx}>
-                          <td className="py-3 px-3 font-mono text-center text-slate-400">
-                            {idx + 1}
-                          </td>
-                          <td className="py-3 px-3">
-                            <p className="font-bold text-slate-900">{name}</p>
-                            {item.description && (
-                              <p className="text-[11px] text-slate-500 mt-0.5">
-                                {item.description}
-                              </p>
-                            )}
-                          </td>
-                          <td className="py-3 px-3 text-center font-mono font-bold">
-                            {qty}
-                          </td>
-                          <td className="py-3 px-3 text-right font-mono">
-                            {formatRM(unitPrice)}
-                          </td>
-                          <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">
-                            {formatRM(itemTotal)}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  ) : (
-                    <tr>
-                      <td
-                        colSpan={4}
-                        className="py-3 px-3 italic text-slate-500"
-                      >
-                        Perkhidmatan / Tempahan Invois
-                      </td>
-                      <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">
-                        {formatRM(totalAmount)}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Ringkasan Bayaran & QR */}
-          <div className="pt-4 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex items-center gap-4 print:border-slate-300">
-              <div className="relative w-20 h-20 bg-white p-1 rounded-lg border border-slate-200 shrink-0">
-                <Image
-                  src="/qr-duitnow.png"
-                  alt="DuitNow QR Payment"
-                  fill
-                  className="object-contain"
+          {/* KAD DOKUMEN INVOIS (Paksa Desktop Layout Dalam Mode Print) */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-10 shadow-sm space-y-8 print:border-none print:shadow-none print:p-0 print:rounded-none print:w-[210mm] print:mx-auto">
+            {/* Header Utama (Dipaksa flex-row semasa cetak) */}
+            <div className="flex flex-col sm:flex-row print:flex-row justify-between items-start gap-8 border-b border-slate-100 pb-6">
+              <div>
+                <img
+                  src="/favicon.svg"
+                  alt="logo wakman"
+                  className="w-24 h-24 object-contain"
                 />
               </div>
-              <div className="space-y-1 text-xs">
-                <p className="font-bold text-slate-900">Imbas Untuk Bayar</p>
-                <p className="text-[10px] text-slate-500 leading-relaxed">
-                  Gunakan aplikasi Perbankan Dalam Talian atau E-Wallet untuk
-                  imbas QR DuitNow ini.
+              <div className="space-y-1">
+                <h2 className="text-lg font-black text-slate-900 tracking-tight">
+                  KAMARUZAMAN ZAINUDDIN
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Perkhidmatan Catering & Tempahan Makanan Secara Korporat
+                </p>
+                <p className="text-xs font-mono font-bold text-slate-500">
+                  202103208150 (CT0091538-M)
+                </p>
+                <p className="text-xs font-mono text-slate-500">
+                  ☎️ Admin: 010 306 8294
+                </p>
+                <p className="text-xs font-mono text-slate-500">
+                  📞 WakMan: 019 645 6542
                 </p>
               </div>
+
+              <div className="sm:text-right print:text-right space-y-1">
+                <h1 className="text-2xl font-black uppercase text-blue-600 tracking-wider">
+                  INVOIS
+                </h1>
+                <p className="text-xs font-mono font-bold text-slate-800">
+                  #{invoice.invoice_number}
+                </p>
+                <div className="text-[11px] text-slate-500 pt-1 space-y-0.5">
+                  <p>
+                    <strong className="text-slate-700">Tarikh Invois:</strong>{" "}
+                    {invoice.invoice_date || "-"}
+                  </p>
+                  <p>
+                    <strong className="text-slate-700">Bayar Sebelum :</strong>{" "}
+                    {invoice.due_date || "-"}
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <div className="space-y-2 text-xs sm:text-right">
-              <div className="flex justify-between sm:justify-end gap-6 text-slate-600">
-                <span>Jumlah Keseluruhan:</span>
-                <span className="font-mono font-bold text-slate-900">
-                  {formatRM(totalAmount)}
+            {/* Maklumat Pelanggan */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-6 text-xs bg-slate-50/50 p-4 rounded-xl border border-slate-100 print:bg-transparent print:p-0 print:border-none">
+              <div className="space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                  Ditujukan Kepada:
                 </span>
-              </div>
-              <div className="flex justify-between sm:justify-end gap-6 text-emerald-600">
-                <span>Bayaran Diterima:</span>
-                <span className="font-mono font-bold">
-                  {formatRM(paidAmount)}
-                </span>
-              </div>
-              <div className="flex justify-between sm:justify-end gap-6 pt-2 border-t border-slate-200 text-sm font-black text-slate-900">
-                <span>Baki Perlu Dibayar:</span>
-                <span className="font-mono text-blue-600">
-                  {formatRM(balanceDue)}
-                </span>
+                <p className="font-bold text-slate-900 text-sm">
+                  {invoice.customers?.customer_name || "Pelanggan Tanpa Nama"}
+                </p>
+                <p className="font-mono text-slate-600">
+                  No. Tel: {invoice.customers?.customer_phone || "-"}
+                </p>
+                {(invoice.customers?.address1 ||
+                  invoice.customers?.address2) && (
+                  <p className="text-slate-500 pt-0.5">
+                    {invoice.customers?.address1}
+                    {invoice.customers?.address2 &&
+                      `, ${invoice.customers?.address2}`}
+                  </p>
+                )}
               </div>
             </div>
-          </div>
 
-          {/* Nota & Terma Bayaran */}
-          {invoice.notes && (
-            <div className="pt-4 border-t border-slate-100 text-xs text-slate-500 space-y-1">
-              <p className="font-bold uppercase text-[10px] tracking-wider text-slate-400">
-                Nota & Terma Bayaran:
+            {/* Senarai Perkhidmatan */}
+            <div className="space-y-3">
+              <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Pecahan Perkhidmatan & Caj
+              </h3>
+
+              <div className="overflow-x-auto print:overflow-visible">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-100/80 border-y border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                      <th className="py-2.5 px-3 w-10 text-center">#</th>
+                      <th className="py-2.5 px-3">Keterangan Item</th>
+                      <th className="py-2.5 px-3 text-center w-20">Kuantiti</th>
+                      <th className="py-2.5 px-3 text-right w-28">
+                        Harga Unit
+                      </th>
+                      <th className="py-2.5 px-3 text-right w-28">Jumlah</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {itemsList.length > 0 ? (
+                      itemsList.map((item, idx) => {
+                        const name =
+                          item.item_name ||
+                          item.name ||
+                          "Perkhidmatan Katering";
+                        const qty = Number(item.quantity || item.qty || 1);
+                        const unitPrice = Number(
+                          item.unit_price || item.price || 0,
+                        );
+                        const itemTotal = Number(
+                          item.total_price || item.amount || qty * unitPrice,
+                        );
+
+                        return (
+                          <tr key={item.id || idx}>
+                            <td className="py-3 px-3 font-mono text-center text-slate-400">
+                              {idx + 1}
+                            </td>
+                            <td className="py-3 px-3">
+                              <p className="font-bold text-slate-900">{name}</p>
+                              {item.description && (
+                                <p className="text-[11px] text-slate-500 mt-0.5">
+                                  {item.description}
+                                </p>
+                              )}
+                            </td>
+                            <td className="py-3 px-3 text-center font-mono font-bold">
+                              {qty}
+                            </td>
+                            <td className="py-3 px-3 text-right font-mono">
+                              {formatRM(unitPrice)}
+                            </td>
+                            <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">
+                              {formatRM(itemTotal)}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td
+                          colSpan={4}
+                          className="py-3 px-3 italic text-slate-500"
+                        >
+                          Perkhidmatan / Tempahan Invois
+                        </td>
+                        <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">
+                          {formatRM(totalAmount)}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Ringkasan Bayaran & QR (Dipaksa 2 lajur semasa cetak) */}
+            <div className="pt-4 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-6 items-start">
+              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex items-center gap-4 print:border-slate-300">
+                <div className="relative w-20 h-20 bg-white p-1 rounded-lg border border-slate-200 shrink-0">
+                  <Image
+                    src="/qr-duitnow.png"
+                    alt="DuitNow QR Payment"
+                    fill
+                    className="object-contain"
+                  />
+                </div>
+                <div className="space-y-1 text-xs">
+                  <p className="font-bold text-slate-900">Imbas Untuk Bayar</p>
+                  <p className="text-[10px] text-slate-500 leading-relaxed">
+                    Gunakan aplikasi Perbankan Dalam Talian atau E-Wallet untuk
+                    imbas QR DuitNow ini.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2 text-xs sm:text-right print:text-right">
+                <div className="flex justify-between sm:justify-end print:justify-end gap-6 text-slate-600">
+                  <span>Jumlah Keseluruhan:</span>
+                  <span className="font-mono font-bold text-slate-900">
+                    {formatRM(totalAmount)}
+                  </span>
+                </div>
+                <div className="flex justify-between sm:justify-end print:justify-end gap-6 text-emerald-600">
+                  <span>Bayaran Diterima:</span>
+                  <span className="font-mono font-bold">
+                    {formatRM(paidAmount)}
+                  </span>
+                </div>
+                <div className="flex justify-between sm:justify-end print:justify-end gap-6 pt-2 border-t border-slate-200 text-sm font-black text-slate-900">
+                  <span>Baki Perlu Dibayar:</span>
+                  <span className="font-mono text-blue-600">
+                    {formatRM(balanceDue)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Nota & Terma Bayaran */}
+            {invoice.notes && (
+              <div className="pt-4 border-t border-slate-100 text-xs text-slate-500 space-y-1">
+                <p className="font-bold uppercase text-[10px] tracking-wider text-slate-400">
+                  Nota & Terma Bayaran:
+                </p>
+                <p className="whitespace-pre-line leading-relaxed text-[11px] bg-slate-50 p-3 rounded-lg border border-slate-100 print:bg-transparent print:p-0 print:border-none">
+                  {invoice.notes}
+                </p>
+              </div>
+            )}
+
+            {/* Footer */}
+            <div className="pt-6 border-t border-slate-100 text-center text-[10px] text-slate-400 space-y-1">
+              <p className="font-medium">
+                Terima kasih kerana berurus niaga dengan kami!
               </p>
-              <p className="whitespace-pre-line leading-relaxed text-[11px] bg-slate-50 p-3 rounded-lg border border-slate-100 print:bg-transparent print:p-0 print:border-none">
-                {invoice.notes}
+              <p>
+                Dokumen ini dijana secara automatik dan sah tanpa tandatangan.
               </p>
             </div>
-          )}
-
-          {/* Footer */}
-          <div className="pt-6 border-t border-slate-100 text-center text-[10px] text-slate-400 space-y-1">
-            <p className="font-medium">
-              Terima kasih kerana berurus niaga dengan kami!
-            </p>
-            <p>
-              Dokumen ini dijana secara automatik dan sah tanpa tandatangan.
-            </p>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
