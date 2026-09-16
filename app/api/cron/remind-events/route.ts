@@ -11,10 +11,27 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 // Setup Web Push Credentials
 if (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
   webpush.setVapidDetails(
-    process.env.VAPID_SUBJECT || "mailto:admin@wakmancatering.com",
+    process.env.VAPID_SUBJECT || "mailto:farisnaimsss@gmail.com",
     process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
     process.env.VAPID_PRIVATE_KEY,
   );
+}
+
+/**
+ * Pembantu untuk mendapatkan tarikh YYYY-MM-DD mengikut Zon Masa Malaysia (GMT+8).
+ */
+function getMalaysiaDateString(daysToAdd = 0): string {
+  const targetDate = new Date();
+  targetDate.setDate(targetDate.getDate() + daysToAdd);
+
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kuala_Lumpur",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  return formatter.format(targetDate);
 }
 
 export async function GET(request: Request) {
@@ -26,31 +43,23 @@ export async function GET(request: Request) {
   }
 
   try {
-    // 1. Kira Tarikh H-0 (Hari Ini), H-1 (Esok), dan H-7 (7 Hari Lagi)
-    const todayObj = new Date();
+    // 1. Kira Tarikh H-0 (Hari Ini), H-1 (Esok), dan H-5 (5 Hari Lagi) berasaskan GMT+8
+    const h0Date = getMalaysiaDateString(0);
+    const h1Date = getMalaysiaDateString(1);
+    const h5Date = getMalaysiaDateString(5);
 
-    const h0Date = todayObj.toISOString().split("T")[0]; // Hari Ini
-
-    const h1Obj = new Date(todayObj);
-    h1Obj.setDate(h1Obj.getDate() + 1);
-    const h1Date = h1Obj.toISOString().split("T")[0]; // Esok
-
-    const h7Obj = new Date(todayObj);
-    h7Obj.setDate(h7Obj.getDate() + 7);
-    const h7Date = h7Obj.toISOString().split("T")[0]; // 7 Hari Lagi
-
-    // 2. Tarik tempahan dari Supabase untuk H-0, H-1, dan H-7
+    // 2. Tarik tempahan dari Supabase mengikut tarikh GMT+8
     const { data: orders, error: ordersError } = await supabase
       .from("orders")
       .select("*")
-      .in("event_date", [h0Date, h1Date, h7Date]);
+      .in("event_date", [h0Date, h1Date, h5Date]);
 
     if (ordersError) throw ordersError;
 
     if (!orders || orders.length === 0) {
       return NextResponse.json({
         success: true,
-        message: `Tiada tempahan majlis untuk H-0 (${h0Date}), H-1 (${h1Date}), atau H-7 (${h7Date}).`,
+        message: `Tiada tempahan majlis untuk H-0 (${h0Date}), H-1 (${h1Date}), atau H-5 (${h5Date}).`,
         count: 0,
       });
     }
@@ -78,10 +87,10 @@ export async function GET(request: Request) {
       }
     }
 
-    // 4. Kelompokkan Tempahan Mengikut Status Kategori (H-0, H-1, H-7)
+    // 4. Kelompokkan Tempahan Mengikut Status Kategori (H-0, H-1, H-5)
     const h0Orders = orders.filter((o) => o.event_date === h0Date);
     const h1Orders = orders.filter((o) => o.event_date === h1Date);
-    const h7Orders = orders.filter((o) => o.event_date === h7Date);
+    const h5Orders = orders.filter((o) => o.event_date === h5Date);
 
     const notificationsToInsert: any[] = [];
     let emailSummaryHtml = "";
@@ -118,16 +127,16 @@ export async function GET(request: Request) {
       });
     }
 
-    // --- KENDALIKAN MAJLIS 7 HARI LAGI (H-7) ---
-    if (h7Orders.length > 0) {
-      emailSummaryHtml += `<h3 style="color: #2563eb;">📅 PERANCANGAN 7 HARI LAGI (H-7: ${h7Date})</h3>`;
-      h7Orders.forEach((o) => {
+    // --- KENDALIKAN MAJLIS 5 HARI LAGI (H-5) ---
+    if (h5Orders.length > 0) {
+      emailSummaryHtml += `<h3 style="color: #2563eb;">📅 PERANCANGAN 5 HARI LAGI (H-5: ${h5Date})</h3>`;
+      h5Orders.forEach((o) => {
         const cust = customerMap[o.customer_id] || { name: "Pelanggan" };
         notificationsToInsert.push({
           order_id: o.id,
-          title: `🛒 Semakan Stok & Supplier (H-7: #${o.order_number || o.id})`,
-          message: `Majlis ${cust.name} pada ${h7Date}. Sila buat semakan stok bahan mentah & sahkan dengan pembekal.`,
-          type: "reminder_h7",
+          title: `🛒 Semakan Stok & Supplier (H-5: #${o.order_number || o.id})`,
+          message: `Majlis ${cust.name} pada ${h5Date}. Sila buat semakan stok bahan mentah & sahkan dengan pembekal.`,
+          type: "reminder_h5",
           is_read: false,
         });
         emailSummaryHtml += `<p>• <strong>${cust.name}</strong> (#${o.order_number || o.id}) - Semak stok & pengesahan supplier.</p>`;
@@ -143,10 +152,11 @@ export async function GET(request: Request) {
     const { data: pushSubs } = await supabase
       .from("push_subscriptions")
       .select("*");
+
     if (pushSubs && pushSubs.length > 0) {
       const pushPayload = JSON.stringify({
         title: `⚡ WakMan Smart Reminder`,
-        body: `H-0: ${h0Orders.length} | H-1: ${h1Orders.length} | H-7: ${h7Orders.length} Majlis`,
+        body: `H-0: ${h0Orders.length} | H-1: ${h1Orders.length} | H-5: ${h5Orders.length} Majlis`,
       });
 
       for (const sub of pushSubs) {
@@ -156,7 +166,7 @@ export async function GET(request: Request) {
             pushPayload,
           );
         } catch (err: any) {
-          console.error("Gagal hantar push ke peranti:", err.endpoint);
+          console.error("Gagal hantar push ke peranti:", sub.endpoint);
         }
       }
     }
@@ -184,7 +194,7 @@ export async function GET(request: Request) {
       await transporter.sendMail({
         from: `"WakMan Catering" <${process.env.EMAIL_USER}>`,
         to: process.env.MY_PERSONAL_EMAIL,
-        subject: `📋 [SMART REMINDER] Ringkasan Majlis H-0, H-1 & H-7 (${h0Date})`,
+        subject: `📋 [SMART REMINDER] Ringkasan Majlis H-0, H-1 & H-5 (${h0Date})`,
         html: fullEmailHtml,
       });
     }
@@ -193,9 +203,12 @@ export async function GET(request: Request) {
       success: true,
       message: "Smart Cron Job berjaya diproses!",
       summary: {
+        h0_date: h0Date,
         h0_count: h0Orders.length,
+        h1_date: h1Date,
         h1_count: h1Orders.length,
-        h7_count: h7Orders.length,
+        h5_date: h5Date,
+        h5_count: h5Orders.length,
       },
     });
   } catch (err: any) {

@@ -1,61 +1,113 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+interface NavItem {
+  label: string;
+  href: string;
+  icon: string;
+  badge?: number;
+}
 
 interface NavGroup {
   groupName: string;
-  items: {
-    label: string;
-    href: string;
-    icon: string;
-  }[];
+  items: NavItem[];
 }
-
-const NAVIGATION_GROUPS: NavGroup[] = [
-  {
-    groupName: "Utama",
-    items: [
-      { label: "Dashboard", href: "/dashboard", icon: "📊" },
-      { label: "Kalendar Majlis", href: "/calendar", icon: "📅" },
-      { label: "Papan Kanban", href: "/board", icon: "📋" },
-    ],
-  },
-  {
-    groupName: "Pengurusan Tempahan",
-    items: [
-      { label: "Senarai Tempahan", href: "/orders", icon: "📦" },
-      { label: "Tambah Tempahan", href: "/orders/new", icon: "➕" },
-    ],
-  },
-  {
-    groupName: "Pengurusan Krew",
-    items: [
-      { label: "Senarai Pramusaji", href: "/dashboard/waiters", icon: "👥" },
-    ],
-  },
-  {
-    groupName: "Pelanggan & Kewangan",
-    items: [
-      { label: "Senarai Pelanggan", href: "/customers", icon: "👥" },
-      { label: "Daftar Pelanggan", href: "/customers/new", icon: "👤" },
-      { label: "Invois & Resit", href: "/invoices", icon: "🧾" },
-      { label: "Bina Invois", href: "/invoices/new", icon: "📝" },
-    ],
-  },
-];
 
 export default function AdminSidebar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Tarik jumlah notifikasi belum dibaca dari Supabase
+  const fetchUnreadCount = async () => {
+    try {
+      const { count, error } = await supabase
+        .from("notifications")
+        .select("*", { count: "exact", head: true })
+        .eq("is_read", false);
+
+      if (!error && count !== null) {
+        setUnreadCount(count);
+      }
+    } catch (err) {
+      console.error("Gagal menarik jumlah notifikasi:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchUnreadCount();
+
+    // Sediakan langganan real-time Supabase untuk jadual notifications
+    const channel = supabase
+      .channel("sidebar-notifications-count")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "notifications" },
+        () => {
+          fetchUnreadCount();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // Susunan Menu Navigasi (Termasuk Menu Pemberitahuan Baru)
+  const NAVIGATION_GROUPS: NavGroup[] = [
+    {
+      groupName: "Utama",
+      items: [
+        { label: "Dashboard", href: "/dashboard", icon: "📊" },
+        {
+          label: "Pemberitahuan",
+          href: "/notifications",
+          icon: "🔔",
+          badge: unreadCount,
+        },
+        { label: "Kalendar Majlis", href: "/calendar", icon: "📅" },
+        { label: "Papan Kanban", href: "/board", icon: "📋" },
+      ],
+    },
+    {
+      groupName: "Pengurusan Tempahan",
+      items: [
+        { label: "Senarai Tempahan", href: "/orders", icon: "📦" },
+        { label: "Tambah Tempahan", href: "/orders/new", icon: "➕" },
+      ],
+    },
+    {
+      groupName: "Pengurusan Krew",
+      items: [
+        { label: "Senarai Pramusaji", href: "/dashboard/waiters", icon: "👥" },
+      ],
+    },
+    {
+      groupName: "Pelanggan & Kewangan",
+      items: [
+        { label: "Senarai Pelanggan", href: "/customers", icon: "👥" },
+        { label: "Daftar Pelanggan", href: "/customers/new", icon: "👤" },
+        { label: "Invois & Resit", href: "/invoices", icon: "🧾" },
+        { label: "Bina Invois", href: "/invoices/new", icon: "📝" },
+      ],
+    },
+  ];
 
   return (
     <>
       {/* Butang Menu Burger Terapung */}
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed top-3 left-3 z-40 p-2.5 bg-white/90 backdrop-blur-md border border-gray-200 shadow-sm rounded-xl text-gray-700 hover:bg-amber-50 hover:text-amber-800 transition active:scale-95 cursor-pointer"
+        className="fixed top-3 left-3 z-40 p-2.5 bg-white/90 backdrop-blur-md border border-gray-200 shadow-sm rounded-xl text-gray-700 hover:bg-amber-50 hover:text-amber-800 transition active:scale-95 cursor-pointer relative"
         title="Buka Menu"
       >
         <svg
@@ -71,6 +123,11 @@ export default function AdminSidebar() {
             d="M4 6h16M4 12h16M4 18h16"
           />
         </svg>
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white shadow-xs">
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
+        )}
       </button>
 
       {/* Latar Malap (Backdrop Overlay) */}
@@ -147,14 +204,23 @@ export default function AdminSidebar() {
                           key={item.href}
                           href={item.href}
                           onClick={() => setIsOpen(false)}
-                          className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
+                          className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition ${
                             isActive
                               ? "bg-amber-50 text-amber-900 border border-amber-200/60 shadow-xs font-bold"
                               : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                           }`}
                         >
-                          <span className="text-base">{item.icon}</span>
-                          <span>{item.label}</span>
+                          <div className="flex items-center gap-3 whitespace-nowrap">
+                            <span className="text-base">{item.icon}</span>
+                            <span>{item.label}</span>
+                          </div>
+
+                          {/* Lencana Angka Notifikasi jika ada */}
+                          {item.badge !== undefined && item.badge > 0 && (
+                            <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                              {item.badge > 99 ? "99+" : item.badge}
+                            </span>
+                          )}
                         </Link>
                       );
                     })}
