@@ -2,13 +2,12 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import nodemailer from "nodemailer";
 import webpush from "web-push";
+import { sendTelegramGroupMessage } from "@/lib/telegram";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Setup Web Push Credentials
 if (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
   webpush.setVapidDetails(
     process.env.VAPID_SUBJECT || "mailto:farisnaimsss@gmail.com",
@@ -17,9 +16,6 @@ if (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
   );
 }
 
-/**
- * Pembantu untuk mendapatkan tarikh YYYY-MM-DD mengikut Zon Masa Malaysia (GMT+8).
- */
 function getMalaysiaDateString(daysToAdd = 0): string {
   const targetDate = new Date();
   targetDate.setDate(targetDate.getDate() + daysToAdd);
@@ -43,12 +39,10 @@ export async function GET(request: Request) {
   }
 
   try {
-    // 1. Kira Tarikh H-0 (Hari Ini), H-1 (Esok), dan H-5 (5 Hari Lagi) berasaskan GMT+8
     const h0Date = getMalaysiaDateString(0);
     const h1Date = getMalaysiaDateString(1);
     const h5Date = getMalaysiaDateString(5);
 
-    // 2. Tarik tempahan dari Supabase mengikut tarikh GMT+8
     const { data: orders, error: ordersError } = await supabase
       .from("orders")
       .select("*")
@@ -59,12 +53,11 @@ export async function GET(request: Request) {
     if (!orders || orders.length === 0) {
       return NextResponse.json({
         success: true,
-        message: `Tiada tempahan majlis untuk H-0 (${h0Date}), H-1 (${h1Date}), atau H-5 (${h5Date}).`,
+        message: `Tiada tempahan majlis untuk Hari Ini (${h0Date}), Esok (${h1Date}), atau 5 Hari Lagi (${h5Date}). Notifikasi Telegram dilangkau (Smart Muting).`,
         count: 0,
       });
     }
 
-    // 3. Tarik data pelanggan untuk tempahan berkenaan
     const customerIds = orders
       .map((order) => order.customer_id)
       .filter((id) => id !== null);
@@ -87,17 +80,18 @@ export async function GET(request: Request) {
       }
     }
 
-    // 4. Kelompokkan Tempahan Mengikut Status Kategori (H-0, H-1, H-5)
     const h0Orders = orders.filter((o) => o.event_date === h0Date);
     const h1Orders = orders.filter((o) => o.event_date === h1Date);
     const h5Orders = orders.filter((o) => o.event_date === h5Date);
 
     const notificationsToInsert: any[] = [];
     let emailSummaryHtml = "";
+    let telegramMessage = `🍗 <b>WAKMAN CATERING SMART REMINDER</b>\n📅 Tarikh: <code>${h0Date}</code>\n\n`;
 
-    // --- KENDALIKAN MAJLIS HARI INI (H-0) ---
     if (h0Orders.length > 0) {
       emailSummaryHtml += `<h3 style="color: #dc2626;">🔥 MAJLIS HARI INI (${h0Date})</h3>`;
+      telegramMessage += `🔥 <b>MAJLIS HARI INI (H-0)</b>\n`;
+
       h0Orders.forEach((o) => {
         const cust = customerMap[o.customer_id] || { name: "Pelanggan" };
         notificationsToInsert.push({
@@ -107,13 +101,17 @@ export async function GET(request: Request) {
           type: "reminder_h0",
           is_read: false,
         });
+
         emailSummaryHtml += `<p>• <strong>${cust.name}</strong> (#${o.order_number || o.id}) - ${o.order_details || "Tiada nota"}</p>`;
+        telegramMessage += `• <b>${cust.name}</b> (#${o.order_number || o.id}) - ${o.order_details || "Tiada nota"}\n`;
       });
+      telegramMessage += `\n`;
     }
 
-    // --- KENDALIKAN MAJLIS ESOK (H-1) ---
     if (h1Orders.length > 0) {
       emailSummaryHtml += `<h3 style="color: #d97706;">⚠️ PERSIAPAN ESOK (H-1: ${h1Date})</h3>`;
+      telegramMessage += `⚠️ <b>PERSIAPAN ESOK (H-1: ${h1Date})</b>\n`;
+
       h1Orders.forEach((o) => {
         const cust = customerMap[o.customer_id] || { name: "Pelanggan" };
         notificationsToInsert.push({
@@ -123,13 +121,17 @@ export async function GET(request: Request) {
           type: "reminder_h1",
           is_read: false,
         });
-        emailSummaryHtml += `<p>• <strong>${cust.name}</strong> (#${o.order_number || o.id}) - Check barang & logistik.</p>`;
+
+        emailSummaryHtml += `<p>• <strong>${cust.name}</strong> (#${o.order_number || o.id}) - Beli Barang, Check Tray, Pinggan, Cawan, Sudu, Kaki Tray, Tong Air.</p>`;
+        telegramMessage += `• <b>${cust.name}</b> (#${o.order_number || o.id}) - Beli Barang, Check Tray, Pinggan, Cawan, Sudu, Kaki Tray, Tong Air.\n\n`;
       });
+      telegramMessage += `\n`;
     }
 
-    // --- KENDALIKAN MAJLIS 5 HARI LAGI (H-5) ---
     if (h5Orders.length > 0) {
       emailSummaryHtml += `<h3 style="color: #2563eb;">📅 PERANCANGAN 5 HARI LAGI (H-5: ${h5Date})</h3>`;
+      telegramMessage += `📅 <b>PERANCANGAN 5 HARI LAGI (H-5: ${h5Date})</b>\n`;
+
       h5Orders.forEach((o) => {
         const cust = customerMap[o.customer_id] || { name: "Pelanggan" };
         notificationsToInsert.push({
@@ -139,24 +141,40 @@ export async function GET(request: Request) {
           type: "reminder_h5",
           is_read: false,
         });
+
         emailSummaryHtml += `<p>• <strong>${cust.name}</strong> (#${o.order_number || o.id}) - Semak stok & pengesahan supplier.</p>`;
+        telegramMessage += `• <b>${cust.name}</b> (#${o.order_number || o.id}) - Semak stok & pengesahan supplier.\n`;
       });
+      telegramMessage += `\n`;
     }
 
-    // 5. Masukkan Rekod Notifikasi ke Jadual `notifications` Supabase
     if (notificationsToInsert.length > 0) {
       await supabase.from("notifications").insert(notificationsToInsert);
     }
 
-    // 6. Hantar Notifikasi Skrin (Web Push API)
+    // FUNGSI 1: SMART MUTING (Hanya hantar ke Telegram jika ada tempahan)
+    const totalReminders = h0Orders.length + h1Orders.length + h5Orders.length;
+    if (totalReminders > 0) {
+      const appBaseUrl =
+        process.env.NEXT_PUBLIC_APP_URL || "https://wakmancatering.com";
+      const buttons = [
+        [
+          { text: "📦 Lihat Senarai Tempahan", url: `${appBaseUrl}/orders` },
+          { text: "📅 Buka Kalendar", url: `${appBaseUrl}/calendar` },
+        ],
+        [{ text: "📊 Dashboard Operasi", url: `${appBaseUrl}/dashboard` }],
+      ];
+
+      await sendTelegramGroupMessage(telegramMessage, buttons);
+    }
+
     const { data: pushSubs } = await supabase
       .from("push_subscriptions")
       .select("*");
-
     if (pushSubs && pushSubs.length > 0) {
       const pushPayload = JSON.stringify({
         title: `⚡ WakMan Smart Reminder`,
-        body: `H-0: ${h0Orders.length} | H-1: ${h1Orders.length} | H-5: ${h5Orders.length} Majlis`,
+        body: `Hari Ini: ${h0Orders.length} | Esok: ${h1Orders.length} | 5 Hari Lagi: ${h5Orders.length} Majlis`,
       });
 
       for (const sub of pushSubs) {
@@ -171,7 +189,6 @@ export async function GET(request: Request) {
       }
     }
 
-    // 7. Hantar Emel Ringkasan Penuh
     if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
       const transporter = nodemailer.createTransport({
         service: "gmail",
@@ -194,7 +211,7 @@ export async function GET(request: Request) {
       await transporter.sendMail({
         from: `"WakMan Catering" <${process.env.EMAIL_USER}>`,
         to: process.env.MY_PERSONAL_EMAIL,
-        subject: `📋 [SMART REMINDER] Ringkasan Majlis H-0, H-1 & H-5 (${h0Date})`,
+        subject: `📋 [SMART REMINDER] Ringkasan Majlis Hari ini, Esok & 5 Hari Lagi (${h0Date})`,
         html: fullEmailHtml,
       });
     }
