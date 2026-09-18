@@ -41,13 +41,13 @@ export async function POST(request: Request) {
         .select("*")
         .eq("event_date", today);
 
-      let reply = `📅 <b>SENARAI MAJLIS HARI INI (${today})</b>\n\n`;
+      let reply = `📅 <b>SENARAI MAJLIS HARI INI (${today})</b>\n`;
 
       if (!orders || orders.length === 0) {
         reply += "✨ Tiada majlis dijadualkan untuk hari ini.";
       } else {
         orders.forEach((o, i) => {
-          reply += `${i + 1}. <b>#${o.order_number || o.id}</b> - ${o.order_details || "Tiada nota"}\n`;
+          reply += `\n${i + 1}. <b>#${o.order_number || o.id}</b> - ${o.order_details || "Tiada nota"}\n`;
         });
       }
 

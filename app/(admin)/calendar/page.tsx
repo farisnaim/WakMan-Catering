@@ -4,6 +4,12 @@ import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { createClient } from "@supabase/supabase-js";
 
+// Inisialisasi Supabase di luar komponen untuk mengelakkan re-creation setiap render
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+);
+
 // Import komponen kalendar secara dynamic tanpa SSR
 const CalendarClient = dynamic(() => import("@/components/CalendarClient"), {
   ssr: false,
@@ -42,11 +48,6 @@ export default function CalendarPage() {
   const [selectedOrderDetails, setSelectedOrderDetails] =
     useState<OrderData | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  );
 
   useEffect(() => {
     fetchOrders();
@@ -220,25 +221,50 @@ export default function CalendarPage() {
     const isFull = count >= MAX_DAILY_ORDERS;
 
     return (
-      <div className="flex flex-col h-full justify-between p-1.5 overflow-hidden min-h-[105px]">
+      <div className="flex flex-col h-full justify-between p-1.5 overflow-hidden min-h-[85px] sm:min-h-[105px]">
         <div className="flex items-center justify-between">
-          <span className="font-bold text-slate-700 text-xs">
+          <span className="font-bold text-slate-700 text-[11px] sm:text-xs">
             {dayInfo.dayNumberText}
           </span>
           {count > 0 && (
             <span
-              className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-md shadow-2xs ${
+              className={`text-[8px] sm:text-[9px] font-extrabold px-1 sm:px-1.5 py-0.5 rounded-md shadow-2xs ${
                 isFull
                   ? "bg-rose-500 text-white"
                   : "bg-amber-100 text-amber-900 border border-amber-300"
               }`}
             >
-              {isFull ? `PENUH (${count})` : `${count} Slot`}
+              <span className="hidden sm:inline">
+                {isFull ? `PENUH (${count})` : `${count} Slot`}
+              </span>
+              <span className="inline sm:hidden font-mono">{count}</span>
             </span>
           )}
         </div>
 
-        <div className="mt-1 space-y-1 overflow-y-auto max-h-[75px] scrollbar-none">
+        {/* 1. PAPARAN DOT (Untuk Skrin Telefon / Skrin Kecil) */}
+        <div className="flex sm:hidden flex-wrap gap-1 mt-1 justify-center items-center">
+          {dayOrders.map((ord) => {
+            let dotColor = "bg-amber-500";
+            if (ord.status === "confirmed") dotColor = "bg-emerald-500";
+            if (ord.status === "completed") dotColor = "bg-sky-500";
+
+            return (
+              <span
+                key={ord.id}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedOrderDetails(ord);
+                }}
+                title={ord.customers?.customer_name || `ID: ${ord.customer_id}`}
+                className={`w-2.5 h-2.5 rounded-full ${dotColor} cursor-pointer hover:scale-125 transition-transform shadow-xs`}
+              />
+            );
+          })}
+        </div>
+
+        {/* 2. PAPARAN NAMA PENUH (Untuk Skrin Komputer / Skrin Besar) */}
+        <div className="hidden sm:block mt-1 space-y-1 overflow-y-auto max-h-[75px] scrollbar-none">
           {dayOrders.map((ord) => {
             let badgeStyle =
               "bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100";
