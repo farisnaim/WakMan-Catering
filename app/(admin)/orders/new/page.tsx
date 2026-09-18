@@ -127,50 +127,31 @@ export default function NewOrderPage() {
     setLoading(true);
 
     try {
-      let customerIdToUse = existingCustomerId;
+      // Hantar data ke API Route /api/orders
+      const response = await fetch("/api/orders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          customerName,
+          customerPhone,
+          address1,
+          address2,
+          existingCustomerId,
+          eventDate,
+          orderDetails,
+          status,
+        }),
+      });
 
-      // 1. Jika pelanggan belum wujud, cipta rekod pelanggan baharu
-      if (!customerIdToUse) {
-        const { data: newCust, error: custErr } = await supabase
-          .from("customers")
-          .insert([
-            {
-              customer_name: customerName.trim(),
-              customer_phone: customerPhone.trim(),
-              address1: address1.trim() || null,
-              address2: address2.trim() || null,
-            },
-          ])
-          .select()
-          .single();
+      const result = await response.json();
 
-        if (custErr) throw custErr;
-        customerIdToUse = newCust.id;
-      } else {
-        // Kemaskini alamat / nama sekiranya ada perubahan pada akaun sedia ada
-        await supabase
-          .from("customers")
-          .update({
-            customer_name: customerName.trim(),
-            customer_phone: customerPhone.trim(),
-            address1: address1.trim() || null,
-            address2: address2.trim() || null,
-          })
-          .eq("id", customerIdToUse);
+      if (!response.ok) {
+        throw new Error(result.error || "Gagal menyimpan tempahan baharu.");
       }
 
-      // 2. Simpan Rekod Tempahan ke Jadual orders
-      const { error: orderErr } = await supabase.from("orders").insert([
-        {
-          customer_id: customerIdToUse,
-          event_date: eventDate || null,
-          order_details: orderDetails.trim() || null,
-          status: status,
-        },
-      ]);
-
-      if (orderErr) throw orderErr;
-
+      // Berjaya simpan & redirect ke senarai tempahan
       router.push("/orders");
       router.refresh();
     } catch (err: any) {
