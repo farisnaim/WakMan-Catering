@@ -18,6 +18,7 @@ interface InvoiceData {
   invoice_date: string | null;
   due_date: string | null;
   total_amount: number;
+  balance_due?: number | null;
   status: string;
   created_at: string;
   customers: Customer | null;
@@ -131,7 +132,7 @@ export default function InvoicesPage() {
     }
   };
 
-  // Fungsi Hantar Whatsapp
+  // Fungsi Hantar Whatsapp dengan Kemaskini Jumlah Yang Perlu Dibayar (balance_due)
   const handleSendWhatsapp = (inv: InvoiceData) => {
     const rawPhone = inv.customers?.customer_phone || "";
     let cleanPhone = rawPhone.replace(/[^0-9]/g, "");
@@ -150,11 +151,14 @@ export default function InvoicesPage() {
     const invoiceUrl = `${origin}/inv/${inv.slug || inv.id}`;
     const qrUrl = `${origin}/qr-duitnow-template.png`;
 
+    // Ambil baki belum berbayar (balance_due). Jika tiada/null, gunakan total_amount
+    const amountToPay = inv.balance_due ?? inv.total_amount;
+
     const message = `Assalamualaikum dan Salam Sejahtera \nTuan/Puan *${inv.customers?.customer_name || "Pelanggan"}*,\n\nInvois anda *#${
       inv.invoice_number || inv.id
-    }* telah diterbitkan.\n\n*JUMLAH PERLU DIBAYAR:* ${formatRM(
-      Number(inv.total_amount),
-    )}\n\nUntuk melihat invois secara penuh, Tuan Puan boleh rujuk pautan di bawah:\n\n📄 *Lihat Invois Penuh:* ${invoiceUrl}\n\n📱 *Paparan QR DuitNow:* ${qrUrl}\n\nSila buat bayaran sebelum tarikh yang ditetapkan. Terima kasih!
+    }* telah diterbitkan.\n\n*JUMLAH YANG PERLU DIBAYAR:* ${formatRM(
+      Number(amountToPay),
+    )}\n\nUntuk melihat invois secara penuh, Tuan/Puan boleh rujuk pautan di bawah:\n\n📄 *Lihat Invois Penuh:* ${invoiceUrl}\n\n📱 *Paparan QR DuitNow:* ${qrUrl}\n\nSila buat bayaran sebelum tarikh yang ditetapkan. Terima kasih!
     
     _*WakMan, sedap bagitahu kawan, tak sedap bagitahu kami.🤙*_
     
@@ -192,7 +196,7 @@ export default function InvoicesPage() {
     }
   };
 
-  // Fungsi Padam Invois (Diperbaiki & Semak Ralat Database)
+  // Fungsi Padam Invois
   const handleDeleteInvoice = async (inv: InvoiceData) => {
     const confirmed = window.confirm(
       `Adakah anda pasti mahu memadam invois #${inv.invoice_number || inv.id}? Tindakan ini tidak boleh dibatalkan.`,
@@ -226,7 +230,7 @@ export default function InvoicesPage() {
         return;
       }
 
-      // 3. Kemaskini state tempatan hanya selepas sah dipadam di Supabase
+      // 3. Kemaskini state tempatan
       setInvoices((prev) => prev.filter((item) => item.id !== inv.id));
       alert("Invois berjaya dipadamkan.");
     } catch (err: any) {

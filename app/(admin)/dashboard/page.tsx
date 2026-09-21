@@ -54,12 +54,60 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchDashboardData();
+
+    // Langganan kemaskini masa nyata Supabase (Realtime)
+    const channel = supabase
+      .channel("dashboard-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "invoices" },
+        () => {
+          fetchDashboardData();
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "orders" },
+        () => {
+          fetchDashboardData();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
+
+  // Fungsi mengira baki terhutang berdasarkan status
+  const calculateBalanceDue = (inv: any): number => {
+    const status = (inv.status || "unpaid").toLowerCase();
+
+    if (status === "paid") {
+      return 0;
+    }
+
+    if (status === "partial") {
+      return inv.balance_due !== null && inv.balance_due !== undefined
+        ? Number(inv.balance_due)
+        : Number(inv.total_amount) || 0;
+    }
+
+    if (status === "unpaid") {
+      return inv.balance_due !== null && inv.balance_due !== undefined
+        ? Number(inv.balance_due)
+        : Number(inv.total_amount) || 0;
+    }
+
+    return inv.balance_due !== null && inv.balance_due !== undefined
+      ? Number(inv.balance_due)
+      : 0;
+  };
 
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      // 1. Dapatkan Senarai Pelanggan & Jumlah
+      // 1. Dapatkan Senarai Pelanggan
       const { data: customersData, error: custError } = await supabase
         .from("customers")
         .select("id, customer_name");
@@ -71,7 +119,7 @@ export default function DashboardPage() {
         customerMap.set(c.id, c.customer_name);
       });
 
-      // 2. Dapatkan Semua Tempahan (Orders) - Tanpa Join
+      // 2. Dapatkan Semua Tempahan (Orders)
       const { data: ordersData, error: ordersError } = await supabase
         .from("orders")
         .select(
@@ -81,7 +129,7 @@ export default function DashboardPage() {
 
       if (ordersError) console.error("Ralat Orders:", ordersError.message);
 
-      // 3. Dapatkan Semua Invois Terkini terus dari pangkalan data Supabase
+      // 3. Dapatkan Semua Invois Terkini
       const { data: invoicesData, error: invoicesError } = await supabase
         .from("invoices")
         .select(
@@ -97,7 +145,6 @@ export default function DashboardPage() {
       const totalOrd = ordersData?.length || 0;
       const totalInv = invoicesData?.length || 0;
 
-      // Pengiraan Hasil Jualan & Deposit Tempahan
       const revenue = (ordersData || []).reduce(
         (sum, item) => sum + (Number(item.total_price) || 0),
         0,
@@ -107,16 +154,15 @@ export default function DashboardPage() {
         0,
       );
 
-      // Penjumlahan Keseluruhan Nilai Invois (Database Invoices Only)
       const invTotalAmount = (invoicesData || []).reduce(
         (sum, item) => sum + (Number(item.total_amount) || 0),
         0,
       );
 
-      // Bilangan Invois Belum Bayar
-      const unpaidCount = (invoicesData || []).filter(
-        (inv) => inv.status === "unpaid" || inv.status === "partial",
-      ).length;
+      const unpaidCount = (invoicesData || []).filter((inv) => {
+        const st = (inv.status || "").toLowerCase();
+        return st === "unpaid" || st === "partial" || st === "pending";
+      }).length;
 
       setStats({
         totalCustomers: totalCust,
@@ -128,7 +174,6 @@ export default function DashboardPage() {
         unpaidInvoicesCount: unpaidCount,
       });
 
-      // Formatkan 5 Tempahan Terkini
       if (ordersData) {
         const formattedOrders: RecentOrder[] = ordersData
           .slice(0, 5)
@@ -144,15 +189,14 @@ export default function DashboardPage() {
         setRecentOrders(formattedOrders);
       }
 
-      // Formatkan 5 Invois Terkini mengikut pangkalan data semasa
       if (invoicesData) {
         const formattedInvoices: RecentInvoice[] = invoicesData
           .slice(0, 5)
           .map((inv: any) => ({
             id: inv.id,
-            invoice_number: inv.invoice_number,
+            invoice_number: inv.invoice_number || `#INV-${inv.id}`,
             total_amount: Number(inv.total_amount) || 0,
-            balance_due: Number(inv.balance_due) || 0,
+            balance_due: calculateBalanceDue(inv),
             status: inv.status || "unpaid",
             customer_name:
               customerMap.get(inv.customer_id) || "Pelanggan Tanpa Nama",
@@ -174,15 +218,20 @@ export default function DashboardPage() {
   };
 
   const getStatusBadge = (status: string) => {
-    switch (status.toLowerCase()) {
+    switch (status?.toLowerCase()) {
       case "paid":
       case "completed":
       case "approved":
         return "bg-emerald-50 text-emerald-700 border-emerald-200";
       case "partial":
+      case "partially_paid":
       case "deposit_paid":
+        return "bg-blue-50 text-blue-700 border-blue-200";
+      case "unpaid":
+      case "pending":
         return "bg-amber-50 text-amber-700 border-amber-200";
       case "cancelled":
+      case "overdue":
         return "bg-rose-50 text-rose-700 border-rose-200";
       default:
         return "bg-slate-100 text-slate-700 border-slate-200";
@@ -210,7 +259,6 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          {/* Komponen Notifikasi diletakkan di sini */}
           <PushNotificationManager />
           <Link
             href="/orders/new"
@@ -236,7 +284,7 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* Ringkasan Penjumlahan Invois (Baharu) */}
+        {/* Ringkasan Penjumlahan Invois */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
           <p className="text-[11px] font-bold text-blue-600 uppercase tracking-wider">
             Jumlah Nilai Invois
@@ -304,6 +352,74 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Quick Button / Akses Cepat */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+        <h2 className="font-bold text-slate-900 text-sm">
+          Akses Pantas Modul Admin
+        </h2>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <Link
+            href="/dashboard/menus"
+            className="flex items-center justify-between p-3.5 bg-slate-50 hover:bg-amber-50/50 border border-slate-200 hover:border-amber-300 rounded-xl transition group"
+          >
+            <div>
+              <p className="font-bold text-xs text-slate-800 group-hover:text-amber-700">
+                Pakej Menu
+              </p>
+              <p className="text-[10px] text-slate-500">Pengurusan Menu</p>
+            </div>
+            <span className="text-slate-400 group-hover:text-amber-600 font-bold text-sm">
+              →
+            </span>
+          </Link>
+
+          <Link
+            href="/dashboard/testimonials"
+            className="flex items-center justify-between p-3.5 bg-slate-50 hover:bg-amber-50/50 border border-slate-200 hover:border-amber-300 rounded-xl transition group"
+          >
+            <div>
+              <p className="font-bold text-xs text-slate-800 group-hover:text-amber-700">
+                Testimoni
+              </p>
+              <p className="text-[10px] text-slate-500">Pengurusan Ulasan</p>
+            </div>
+            <span className="text-slate-400 group-hover:text-amber-600 font-bold text-sm">
+              →
+            </span>
+          </Link>
+
+          <Link
+            href="/dashboard/tetapan-pramusaji"
+            className="flex items-center justify-between p-3.5 bg-slate-50 hover:bg-amber-50/50 border border-slate-200 hover:border-amber-300 rounded-xl transition group"
+          >
+            <div>
+              <p className="font-bold text-xs text-slate-800 group-hover:text-amber-700">
+                Tetapan Pramusaji
+              </p>
+              <p className="text-[10px] text-slate-500">Halaman Rekrut</p>
+            </div>
+            <span className="text-slate-400 group-hover:text-amber-600 font-bold text-sm">
+              →
+            </span>
+          </Link>
+
+          <Link
+            href="/dashboard/waiters"
+            className="flex items-center justify-between p-3.5 bg-slate-50 hover:bg-amber-50/50 border border-slate-200 hover:border-amber-300 rounded-xl transition group"
+          >
+            <div>
+              <p className="font-bold text-xs text-slate-800 group-hover:text-amber-700">
+                Permohonan Krew
+              </p>
+              <p className="text-[10px] text-slate-500">Senarai Pramusaji</p>
+            </div>
+            <span className="text-slate-400 group-hover:text-amber-600 font-bold text-sm">
+              →
+            </span>
+          </Link>
+        </div>
+      </div>
+
       {/* Jadual Aktiviti Terkini */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* 5 Tempahan Terkini */}
@@ -364,7 +480,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* 5 Invois Terkini (Mengikut Database) */}
+        {/* 5 Invois Terkini */}
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="font-bold text-slate-900 text-sm">Invois Terkini</h2>
@@ -387,7 +503,7 @@ export default function DashboardPage() {
                   <tr className="border-b border-slate-100 text-slate-400 font-bold uppercase text-[10px]">
                     <th className="pb-2">No. Invois</th>
                     <th className="pb-2">Pelanggan</th>
-                    <th className="pb-2 text-right">Baki</th>
+                    <th className="pb-2 text-right">Baki Terhutang</th>
                     <th className="pb-2 text-center">Status</th>
                   </tr>
                 </thead>
@@ -400,7 +516,13 @@ export default function DashboardPage() {
                       <td className="py-3 text-slate-900 font-medium">
                         {inv.customer_name}
                       </td>
-                      <td className="py-3 text-right font-mono font-bold text-rose-600">
+                      <td
+                        className={`py-3 text-right font-mono font-bold ${
+                          inv.balance_due > 0
+                            ? "text-rose-600"
+                            : "text-emerald-600"
+                        }`}
+                      >
                         {formatRM(inv.balance_due)}
                       </td>
                       <td className="py-3 text-center">

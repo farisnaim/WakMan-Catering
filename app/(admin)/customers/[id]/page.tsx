@@ -101,7 +101,7 @@ export default function CustomerDetailPage({
   };
 
   const getStatusBadge = (status: string) => {
-    switch (status.toLowerCase()) {
+    switch (status?.toLowerCase()) {
       case "paid":
       case "completed":
       case "approved":
@@ -155,10 +155,22 @@ export default function CustomerDetailPage({
     (sum, ord) => sum + (Number(ord.total_price) || 0),
     0,
   );
-  const totalBalanceDue = invoices.reduce(
-    (sum, inv) => sum + (Number(inv.balance_due) || 0),
-    0,
-  );
+
+  // Logik baharu bagi pengiraan Baki Belum Berbayar mengikut status invois
+  const totalBalanceDue = invoices.reduce((sum, inv) => {
+    const status = inv.status?.toLowerCase() || "";
+
+    if (status === "paid") {
+      return sum + 0;
+    } else if (status === "partial" || status === "deposit_paid") {
+      return sum + (Number(inv.balance_due) || 0);
+    } else if (status === "unpaid" || status === "pending") {
+      return sum + (Number(inv.total_amount) || 0);
+    }
+
+    // Default fallback jika tiada status khusus
+    return sum + (Number(inv.balance_due) || 0);
+  }, 0);
 
   return (
     <div className="p-6 space-y-8 max-w-6xl mx-auto">
@@ -256,7 +268,7 @@ export default function CustomerDetailPage({
 
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              Nilai Nilai Komitmen
+              Nilai Komitmen
             </p>
             <div>
               <p className="text-2xl font-black text-blue-600">
@@ -377,7 +389,14 @@ export default function CustomerDetailPage({
                       {formatRM(inv.total_amount)}
                     </td>
                     <td className="py-3 text-right font-mono font-bold text-rose-600">
-                      {formatRM(inv.balance_due)}
+                      {formatRM(
+                        inv.status?.toLowerCase() === "paid"
+                          ? 0
+                          : inv.status?.toLowerCase() === "unpaid" ||
+                              inv.status?.toLowerCase() === "pending"
+                            ? inv.total_amount
+                            : inv.balance_due,
+                      )}
                     </td>
                     <td className="py-3 text-center">
                       <span

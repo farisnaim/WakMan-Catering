@@ -218,7 +218,13 @@ export default function CustomersPage() {
                       #{c.id}
                     </td>
                     <td className="p-4 font-bold text-slate-900">
-                      {c.customer_name}
+                      {/* Pautan Nama Pelanggan ke Halaman Butiran */}
+                      <Link
+                        href={`/customers/${c.id}`}
+                        className="text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+                      >
+                        {c.customer_name}
+                      </Link>
                     </td>
                     <td className="p-4 font-mono text-slate-600">
                       {c.customer_phone || "-"}
@@ -232,9 +238,16 @@ export default function CustomersPage() {
                       {new Date(c.created_at).toLocaleDateString("ms-MY")}
                     </td>
 
-                    {/* Tindakan: Sunting & Padam */}
+                    {/* Tindakan: Butiran, Sunting & Padam */}
                     <td className="p-4 text-center">
                       <div className="flex items-center justify-center gap-1.5">
+                        <Link
+                          href={`/customers/${c.id}`}
+                          className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[10px] border border-emerald-200 rounded-lg transition cursor-pointer flex items-center gap-1"
+                          title="Lihat Butiran & Sejarah Tempahan"
+                        >
+                          👁️ Butiran
+                        </Link>
                         <button
                           onClick={() => handleOpenEditModal(c)}
                           className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[10px] border border-blue-200 rounded-lg transition cursor-pointer"
