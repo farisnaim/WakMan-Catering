@@ -133,7 +133,7 @@ export default function SertaiKamiPage() {
           </h2>
           <p className="text-xs text-slate-400">
             Isi borang permohonan sekarang dan pihak kami akan menghubungi anda
-            untuk tugasan majlis terdekat[cite: 7].
+            untuk tugasan majlis terdekat.
           </p>
         </div>
         <Link

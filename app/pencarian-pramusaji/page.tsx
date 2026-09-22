@@ -21,7 +21,7 @@ export default function WaiterApplicationPage() {
     shirt_size: "M",
   });
 
-  const adminPhone = "60103068294";
+  const adminPhone = "60199147010";
   const whatsappMsg = encodeURIComponent(
     "Assalamualaikum Admin Wak Man catering, saya dah isi borang untuk pramusaji / penanggah. Saya berminat untuk join Team Wak Man",
   );
@@ -71,7 +71,11 @@ export default function WaiterApplicationPage() {
         <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-xl bg-amber-500 flex items-center justify-center font-black text-slate-950 text-base">
-              W
+              <img
+                src="/favicon.svg"
+                alt="logo wakman"
+                className="w-7 h-7 object-contain"
+              />
             </div>
             <span className="font-black tracking-tight text-sm text-white">
               WAKMAN CATERING

@@ -9,6 +9,16 @@ export default function Footer() {
   );
   const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${defaultGreeting}`;
 
+  const emailAddress = "wakmancatering@gmail.com";
+  const emailSubject = encodeURIComponent(
+    "Pertanyaan Tempahan Catering - Wakman Catering",
+  );
+  const emailBody = encodeURIComponent(
+    "Assalammualaikum Wakman Catering,\n\nSaya berminat untuk bertanyakan maklumat berkaitan pakej tempahan catering.\n\nMaklumat Majlis:\n- Tarikh:\n- Lokasi:\n- Bilangan Pax:\n\nTerima kasih.",
+  );
+
+  const mailtoUrl = `mailto:${emailAddress}?subject=${emailSubject}&body=${emailBody}`;
+
   return (
     <footer className="border-t border-slate-800 bg-slate-950 py-10 text-xs text-slate-500">
       <div className="max-w-6xl mx-auto px-6 space-y-8">
@@ -28,8 +38,7 @@ export default function Footer() {
               </span>
             </div>
             <p className="text-slate-400 leading-relaxed">
-              Pakar perkhidmatan katering & sajian makanan terbaik untuk majlis
-              perkahwinan, kesyukuran, akikah, dan acara korporat.
+              Ingat Catering, Ingat Wak Man
             </p>
           </div>
 
@@ -78,16 +87,24 @@ export default function Footer() {
             </h4>
             <p className="text-slate-400 leading-relaxed">
               Sebarang pertanyaan atau tempahan terus, sila hubungi kami melalui
-              WhatsApp rasmi.
+              WhatsApp dan Emel.
             </p>
-            <a
-              href={whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600/10 border border-emerald-500/20 text-emerald-400 rounded-xl hover:bg-emerald-600 hover:text-white transition font-medium"
-            >
-              <span>💬</span> 010-3068294
-            </a>
+            <div className="flex flex-wrap items-center gap-3">
+              <a
+                href={whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600/10 border border-emerald-500/20 text-emerald-400 rounded-xl hover:bg-emerald-600 hover:text-white transition font-medium"
+              >
+                <span>💬</span> 019-9147010
+              </a>
+              <a
+                href={mailtoUrl}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600/10 border border-sky-500/20 text-sky-400 rounded-xl hover:bg-sky-600 hover:text-white transition font-medium"
+              >
+                <span>✉️</span> wakmancatering
+              </a>
+            </div>
           </div>
         </div>
 

@@ -8,7 +8,7 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
 
-  const whatsappNumber = "60103068294";
+  const whatsappNumber = "60199147010";
   const defaultGreeting = encodeURIComponent(
     "Assalammualaikum Wakman Catering, saya berminat untuk bertanyakan maklumat berkaitan pakej tempahan catering.",
   );
