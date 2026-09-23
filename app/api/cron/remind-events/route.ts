@@ -10,7 +10,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 if (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
   webpush.setVapidDetails(
-    process.env.VAPID_SUBJECT || "mailto:farisnaimsss@gmail.com",
+    process.env.VAPID_SUBJECT || "mailto:wakmancatering@gmail.com",
     process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
     process.env.VAPID_PRIVATE_KEY,
   );
@@ -156,10 +156,10 @@ export async function GET(request: Request) {
     const totalReminders = h0Orders.length + h1Orders.length + h5Orders.length;
     if (totalReminders > 0) {
       const appBaseUrl =
-        process.env.NEXT_PUBLIC_APP_URL || "https://wakmancatering.com";
+        process.env.NEXT_PUBLIC_APP_URL || "https://wakmancatering.vercel.app";
       const buttons = [
         [
-          { text: "📦 Lihat Senarai Tempahan", url: `${appBaseUrl}/orders` },
+          { text: "📦 Lihat Tempahan", url: `${appBaseUrl}/orders` },
           { text: "📅 Buka Kalendar", url: `${appBaseUrl}/calendar` },
         ],
         [{ text: "📊 Dashboard Operasi", url: `${appBaseUrl}/dashboard` }],
