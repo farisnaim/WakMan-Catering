@@ -75,13 +75,8 @@ export default function InvoicesPage() {
           if (!customerError && customerData) {
             customerData.forEach((cust: any) => {
               customerMap[cust.id] = {
-                customer_name:
-                  cust.customer_name ||
-                  cust.name ||
-                  cust.full_name ||
-                  "Pelanggan",
-                customer_phone:
-                  cust.customer_phone || cust.phone || cust.phone_number || "",
+                customer_name: cust.customer_name || "Pelanggan",
+                customer_phone: cust.customer_phone || "",
               };
             });
           }
@@ -132,7 +127,18 @@ export default function InvoicesPage() {
     }
   };
 
-  // Fungsi Hantar Whatsapp dengan Kemaskini Jumlah Yang Perlu Dibayar (balance_due)
+  // Pengiraan Baki Mengikut Status
+  const getDisplayBalanceDue = (inv: InvoiceData): number => {
+    const status = (inv.status || "unpaid").toLowerCase();
+    if (status === "paid") return 0;
+
+    if (inv.balance_due !== null && inv.balance_due !== undefined) {
+      return Number(inv.balance_due);
+    }
+    return Number(inv.total_amount) || 0;
+  };
+
+  // Fungsi Hantar Whatsapp
   const handleSendWhatsapp = (inv: InvoiceData) => {
     const rawPhone = inv.customers?.customer_phone || "";
     let cleanPhone = rawPhone.replace(/[^0-9]/g, "");
@@ -147,12 +153,10 @@ export default function InvoicesPage() {
     }
 
     const origin = typeof window !== "undefined" ? window.location.origin : "";
-
     const invoiceUrl = `${origin}/inv/${inv.slug || inv.id}`;
     const qrUrl = `${origin}/qr-duitnow-template.png`;
 
-    // Ambil baki belum berbayar (balance_due). Jika tiada/null, gunakan total_amount
-    const amountToPay = inv.balance_due ?? inv.total_amount;
+    const amountToPay = getDisplayBalanceDue(inv);
 
     const message = `Assalamualaikum dan Salam Sejahtera \nTuan/Puan *${inv.customers?.customer_name || "Pelanggan"}*,\n\nInvois anda *#${
       inv.invoice_number || inv.id
@@ -160,9 +164,9 @@ export default function InvoicesPage() {
       Number(amountToPay),
     )}\n\nUntuk melihat invois secara penuh, Tuan/Puan boleh rujuk pautan di bawah:\n\n📄 *Lihat Invois Penuh:* ${invoiceUrl}\n\n📱 *Paparan QR DuitNow:* ${qrUrl}\n\nSila buat bayaran sebelum tarikh yang ditetapkan. Terima kasih!
     
-    _*WakMan, sedap bagitahu kawan, tak sedap bagitahu kami.🤙*_
+_*WakMan, sedap bagitahu kawan, tak sedap bagitahu kami.🤙*_
     
-    *Ingat Catering, Ingat WakMan Catering*`;
+*Ingat Catering, Ingat WakMan Catering*`;
 
     const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
       message,
@@ -175,9 +179,15 @@ export default function InvoicesPage() {
     if (!selectedInvoice) return;
     setUpdatingStatus(true);
 
+    // Kemaskini status dan baki jika berstatus paid
+    const updatedPayload: any = { status: newStatus };
+    if (newStatus === "paid") {
+      updatedPayload.balance_due = 0;
+    }
+
     const { error } = await supabase
       .from("invoices")
-      .update({ status: newStatus })
+      .update(updatedPayload)
       .eq("id", selectedInvoice.id);
 
     setUpdatingStatus(false);
@@ -185,7 +195,11 @@ export default function InvoicesPage() {
       setInvoices((prev) =>
         prev.map((item) =>
           item.id === selectedInvoice.id
-            ? { ...item, status: newStatus }
+            ? {
+                ...item,
+                status: newStatus,
+                balance_due: newStatus === "paid" ? 0 : item.balance_due,
+              }
             : item,
         ),
       );
@@ -205,18 +219,7 @@ export default function InvoicesPage() {
     if (!confirmed) return;
 
     try {
-      // 1. Padam rekod anak dalam jadual invoice_items (jika ada)
-      const { error: itemsError } = await supabase
-        .from("invoice_items")
-        .delete()
-        .eq("invoice_id", inv.id);
-
-      if (itemsError) {
-        alert("Gagal memadam item invois: " + itemsError.message);
-        return;
-      }
-
-      // 2. Padam invois daripada jadual invoices
+      // Padam terus dari jadual invoices (data item ada dalam lajur items_data JSON)
       const { error: invoiceError } = await supabase
         .from("invoices")
         .delete()
@@ -230,7 +233,7 @@ export default function InvoicesPage() {
         return;
       }
 
-      // 3. Kemaskini state tempatan
+      // Kemaskini state tempatan
       setInvoices((prev) => prev.filter((item) => item.id !== inv.id));
       alert("Invois berjaya dipadamkan.");
     } catch (err: any) {
@@ -324,81 +327,96 @@ export default function InvoicesPage() {
                   <th className="p-4">Pelanggan</th>
                   <th className="p-4">Tarikh Invois</th>
                   <th className="p-4 text-right">Jumlah (RM)</th>
+                  <th className="p-4 text-right">Baki (RM)</th>
                   <th className="p-4 text-center">Status</th>
                   <th className="p-4 text-center">Tindakan</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
-                {filteredInvoices.map((inv) => (
-                  <tr key={inv.id} className="hover:bg-slate-50/50 transition">
-                    <td className="p-4 font-mono font-bold text-blue-600">
-                      {inv.invoice_number || `#INV-${inv.id}`}
-                    </td>
-                    <td className="p-4">
-                      <p className="font-bold text-slate-900">
-                        {inv.customers?.customer_name || "Pelanggan Tanpa Nama"}
-                      </p>
-                      <p className="text-[10px] text-slate-400 font-mono">
-                        {inv.customers?.customer_phone || "-"}
-                      </p>
-                    </td>
-                    <td className="p-4 font-mono text-slate-600">
-                      {inv.invoice_date || "-"}
-                    </td>
-                    <td className="p-4 text-right font-mono font-bold text-slate-900">
-                      {formatRM(Number(inv.total_amount))}
-                    </td>
-                    <td className="p-4 text-center">
-                      <span
-                        className={`px-2.5 py-1 border rounded-full text-[10px] font-bold uppercase ${getStatusBadge(
-                          inv.status,
-                        )}`}
+                {filteredInvoices.map((inv) => {
+                  const balanceDue = getDisplayBalanceDue(inv);
+                  return (
+                    <tr
+                      key={inv.id}
+                      className="hover:bg-slate-50/50 transition"
+                    >
+                      <td className="p-4 font-mono font-bold text-blue-600">
+                        {inv.invoice_number || `#INV-${inv.id}`}
+                      </td>
+                      <td className="p-4">
+                        <p className="font-bold text-slate-900">
+                          {inv.customers?.customer_name ||
+                            "Pelanggan Tanpa Nama"}
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-mono">
+                          {inv.customers?.customer_phone || "-"}
+                        </p>
+                      </td>
+                      <td className="p-4 font-mono text-slate-600">
+                        {inv.invoice_date || "-"}
+                      </td>
+                      <td className="p-4 text-right font-mono font-bold text-slate-900">
+                        {formatRM(Number(inv.total_amount))}
+                      </td>
+                      <td
+                        className={`p-4 text-right font-mono font-bold ${
+                          balanceDue > 0 ? "text-rose-600" : "text-emerald-600"
+                        }`}
                       >
-                        {inv.status || "unpaid"}
-                      </span>
-                    </td>
-
-                    <td className="p-4">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <Link
-                          href={`/inv/${inv.slug || inv.id}`}
-                          target="_blank"
-                          className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] rounded-lg transition"
-                          title="Lihat Invois Penuh"
+                        {formatRM(balanceDue)}
+                      </td>
+                      <td className="p-4 text-center">
+                        <span
+                          className={`px-2.5 py-1 border rounded-full text-[10px] font-bold uppercase ${getStatusBadge(
+                            inv.status,
+                          )}`}
                         >
-                          👁️ Lihat
-                        </Link>
+                          {inv.status || "unpaid"}
+                        </span>
+                      </td>
 
-                        <button
-                          onClick={() => handleSendWhatsapp(inv)}
-                          className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[10px] border border-emerald-200 rounded-lg transition cursor-pointer"
-                          title="Hantar WhatsApp ke Pelanggan"
-                        >
-                          💬 Hantar
-                        </button>
+                      <td className="p-4">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <Link
+                            href={`/inv/${inv.slug || inv.id}`}
+                            target="_blank"
+                            className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] rounded-lg transition"
+                            title="Lihat Invois Penuh"
+                          >
+                            👁️ Lihat
+                          </Link>
 
-                        <button
-                          onClick={() => {
-                            setSelectedInvoice(inv);
-                            setIsStatusModalOpen(true);
-                          }}
-                          className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[10px] border border-blue-200 rounded-lg transition cursor-pointer"
-                          title="Kemaskini Status Bayaran"
-                        >
-                          ⚙️ Status
-                        </button>
+                          <button
+                            onClick={() => handleSendWhatsapp(inv)}
+                            className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[10px] border border-emerald-200 rounded-lg transition cursor-pointer"
+                            title="Hantar WhatsApp ke Pelanggan"
+                          >
+                            💬 Hantar
+                          </button>
 
-                        <button
-                          onClick={() => handleDeleteInvoice(inv)}
-                          className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] border border-rose-200 rounded-lg transition cursor-pointer"
-                          title="Padam Invois"
-                        >
-                          🗑️ Padam
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          <button
+                            onClick={() => {
+                              setSelectedInvoice(inv);
+                              setIsStatusModalOpen(true);
+                            }}
+                            className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[10px] border border-blue-200 rounded-lg transition cursor-pointer"
+                            title="Kemaskini Status Bayaran"
+                          >
+                            ⚙️ Status
+                          </button>
+
+                          <button
+                            onClick={() => handleDeleteInvoice(inv)}
+                            className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] border border-rose-200 rounded-lg transition cursor-pointer"
+                            title="Padam Invois"
+                          >
+                            🗑️ Padam
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
