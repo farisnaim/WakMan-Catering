@@ -346,7 +346,7 @@ _*WakMan, sedap bagitahu kawan, tak sedap bagitahu kami.🤙*_
                       <td className="p-4">
                         <p className="font-bold text-slate-900">
                           {inv.customers?.customer_name ||
-                            "Pelanggan Tanpa Nama"}
+                            "Pelanggan yang Dikasihi"}
                         </p>
                         <p className="text-[10px] text-slate-400 font-mono">
                           {inv.customers?.customer_phone || "-"}
