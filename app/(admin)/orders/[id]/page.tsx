@@ -83,7 +83,7 @@ export default function OrderDetailPage({
             parsed.map((it: any, idx: number) => ({
               id: it.id || Date.now().toString() + idx,
               item_name: it.item_name || it.name || it.description || "",
-              qty: Number(it.qty || it.quantity || 1),
+              qty: Number(it.qty || it.quantity || ""),
               unit_price: Number(it.unit_price || it.price || 0),
             })),
           );
