@@ -8,8 +8,8 @@ import { supabase } from "@/lib/supabase";
 interface QuotationItem {
   id: string;
   item_name: string;
-  qty: number;
-  unit_price: number;
+  qty: number | string;
+  unit_price: number | string;
 }
 
 export default function OrderDetailPage({
@@ -28,7 +28,7 @@ export default function OrderDetailPage({
 
   // State Itemize & Pricing
   const [items, setItems] = useState<QuotationItem[]>([]);
-  const [depositPaid, setDepositPaid] = useState<number>(0);
+  const [depositPaid, setDepositPaid] = useState<number | string>(0);
   const [notes, setNotes] = useState(
     "Terima kasih atas tempahan anda. Sebarang pertanyaan sila hubungi pihak kami. Harga dan ketetapan quotation ini hanya terpakai untuk 30 hari sahaja dari tarikh sebut harga dikeluarkan.",
   );
@@ -61,7 +61,11 @@ export default function OrderDetailPage({
       const fullOrder = { ...orderData, customers: customerData };
       setOrder(fullOrder);
       setStatus(fullOrder.status || "pending");
-      setDepositPaid(Number(fullOrder.deposit_paid || 0));
+      setDepositPaid(
+        fullOrder.deposit_paid !== null && fullOrder.deposit_paid !== undefined
+          ? Number(fullOrder.deposit_paid)
+          : 0,
+      );
 
       // Ekstrak items daripada pelbagai keutamaan medan lajur
       const rawItems =
@@ -83,8 +87,16 @@ export default function OrderDetailPage({
             parsed.map((it: any, idx: number) => ({
               id: it.id || Date.now().toString() + idx,
               item_name: it.item_name || it.name || it.description || "",
-              qty: Number(it.qty || it.quantity || ""),
-              unit_price: Number(it.unit_price || it.price || 0),
+              qty:
+                it.qty !== undefined && it.qty !== null && it.qty !== ""
+                  ? Number(it.qty)
+                  : "",
+              unit_price:
+                it.unit_price !== undefined &&
+                it.unit_price !== null &&
+                it.unit_price !== ""
+                  ? Number(it.unit_price)
+                  : 0,
             })),
           );
         } else if (fullOrder.order_details) {
@@ -140,28 +152,35 @@ export default function OrderDetailPage({
   };
 
   const calculateSubtotal = () => {
-    return items.reduce(
-      (acc, curr) => acc + Number(curr.qty || 0) * Number(curr.unit_price || 0),
-      0,
-    );
+    return items.reduce((acc, curr) => {
+      const q = curr.qty === "" ? 0 : Number(curr.qty || 0);
+      const p = curr.unit_price === "" ? 0 : Number(curr.unit_price || 0);
+      return acc + q * p;
+    }, 0);
   };
 
   const handleSaveQuotation = async () => {
     setSaving(true);
     const totalCalc = calculateSubtotal();
 
+    // Sediakan senarai item yang bersih untuk disimpan ke DB
+    const cleanedItems = items.map((it) => ({
+      ...it,
+      qty: it.qty === "" ? 0 : Number(it.qty),
+      unit_price: it.unit_price === "" ? 0 : Number(it.unit_price),
+    }));
+
     const quotationPayload = {
-      items,
+      items: cleanedItems,
       notes,
       total_price: totalCalc,
     };
 
-    // Hanya guna nama lajur yang sah di Supabase: deposit_paid, total_price, items_data
     const updatePayload: any = {
       status: status,
       total_price: totalCalc,
-      deposit_paid: depositPaid,
-      items_data: items,
+      deposit_paid: depositPaid === "" ? 0 : Number(depositPaid),
+      items_data: cleanedItems,
       quotation_data: quotationPayload,
     };
 
@@ -350,11 +369,15 @@ export default function OrderDetailPage({
                     </label>
                     <input
                       type="number"
-                      min=""
                       placeholder="0"
                       value={item.qty}
+                      onFocus={(e) => {
+                        if (e.target.value === "0") {
+                          updateItem(item.id, "qty", "");
+                        }
+                      }}
                       onChange={(e) =>
-                        updateItem(item.id, "qty", Number(e.target.value))
+                        updateItem(item.id, "qty", e.target.value)
                       }
                       className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono text-center focus:outline-none focus:border-blue-600"
                     />
@@ -367,13 +390,18 @@ export default function OrderDetailPage({
                     <input
                       type="number"
                       step="0.10"
+                      placeholder="0.00"
                       value={item.unit_price}
+                      onFocus={(e) => {
+                        if (
+                          e.target.value === "0" ||
+                          e.target.value === "0.00"
+                        ) {
+                          updateItem(item.id, "unit_price", "");
+                        }
+                      }}
                       onChange={(e) =>
-                        updateItem(
-                          item.id,
-                          "unit_price",
-                          Number(e.target.value),
-                        )
+                        updateItem(item.id, "unit_price", e.target.value)
                       }
                       className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono text-right focus:outline-none focus:border-blue-600"
                     />
@@ -401,7 +429,12 @@ export default function OrderDetailPage({
                 type="number"
                 step="0.10"
                 value={depositPaid}
-                onChange={(e) => setDepositPaid(Number(e.target.value))}
+                onFocus={(e) => {
+                  if (e.target.value === "0" || e.target.value === "0.00") {
+                    setDepositPaid("");
+                  }
+                }}
+                onChange={(e) => setDepositPaid(e.target.value)}
                 placeholder="0.00"
                 className="w-full md:w-1/2 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold focus:outline-none focus:border-blue-600"
               />

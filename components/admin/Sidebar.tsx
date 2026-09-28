@@ -79,10 +79,10 @@ export default function AdminSidebar() {
       ],
     },
     {
-      groupName: "Pengurusan Tempahan",
+      groupName: "Pengurusan Tempahan & Quotation",
       items: [
-        { label: "Senarai Tempahan", href: "/orders", icon: "📦" },
-        { label: "Tambah Tempahan", href: "/orders/new", icon: "➕" },
+        { label: "List Tempahan & Quotation", href: "/orders", icon: "📦" },
+        { label: " + Tempahan & Quotation", href: "/orders/new", icon: "➕" },
       ],
     },
     {
