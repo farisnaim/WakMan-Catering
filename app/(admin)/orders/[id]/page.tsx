@@ -107,7 +107,7 @@ export default function OrderDetailPage({
     const autoItems: QuotationItem[] = lines.map((line, idx) => ({
       id: Date.now().toString() + idx,
       item_name: line.replace(/^[-*•]\s*/, "").trim(),
-      qty: 1,
+      qty: "",
       unit_price: 0,
     }));
 
@@ -115,7 +115,7 @@ export default function OrderDetailPage({
       setItems(autoItems);
     } else {
       setItems([
-        { id: "1", item_name: "Pakej Katering / Menu", qty: 1, unit_price: 0 },
+        { id: "1", item_name: "Pakej Katering / Menu", qty: "", unit_price: 0 },
       ]);
     }
   };
@@ -123,7 +123,7 @@ export default function OrderDetailPage({
   const addItem = () => {
     setItems([
       ...items,
-      { id: Date.now().toString(), item_name: "", qty: 1, unit_price: 0 },
+      { id: Date.now().toString(), item_name: "", qty: "", unit_price: 0 },
     ]);
   };
 
@@ -191,7 +191,7 @@ export default function OrderDetailPage({
     return (
       <div className="p-12 text-center space-y-4">
         <p className="text-sm font-bold text-slate-700">
-          Tempahan tidak ditemui.
+          Quotation tidak ditemui.
         </p>
         <Link
           href="/orders"
@@ -207,7 +207,7 @@ export default function OrderDetailPage({
     order.customers?.customer_name ||
     order.customers?.name ||
     order.customers?.full_name ||
-    "Pelanggan Tanpa Nama";
+    "Pelanggan Yang Dikasihi";
 
   const custPhone =
     order.customers?.customer_phone ||
@@ -350,7 +350,8 @@ export default function OrderDetailPage({
                     </label>
                     <input
                       type="number"
-                      min="1"
+                      min=""
+                      placeholder="0"
                       value={item.qty}
                       onChange={(e) =>
                         updateItem(item.id, "qty", Number(e.target.value))
@@ -365,7 +366,7 @@ export default function OrderDetailPage({
                     </label>
                     <input
                       type="number"
-                      step="0.01"
+                      step="0.10"
                       value={item.unit_price}
                       onChange={(e) =>
                         updateItem(
@@ -398,7 +399,7 @@ export default function OrderDetailPage({
               </label>
               <input
                 type="number"
-                step="0.01"
+                step="0.10"
                 value={depositPaid}
                 onChange={(e) => setDepositPaid(Number(e.target.value))}
                 placeholder="0.00"
