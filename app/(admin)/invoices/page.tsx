@@ -15,6 +15,7 @@ interface InvoiceData {
   order_id: number | null;
   customer_id: number;
   invoice_number: string;
+  po_number?: string | null;
   invoice_date: string | null;
   due_date: string | null;
   total_amount: number;
@@ -245,9 +246,11 @@ _*WakMan, sedap bagitahu kawan, tak sedap bagitahu kami.🤙*_
     const custName = inv.customers?.customer_name || "";
     const custPhone = inv.customers?.customer_phone || "";
     const invNum = inv.invoice_number || "";
+    const poNum = inv.po_number || "";
 
     const matchesSearch =
       invNum.toLowerCase().includes(search.toLowerCase()) ||
+      poNum.toLowerCase().includes(search.toLowerCase()) ||
       custName.toLowerCase().includes(search.toLowerCase()) ||
       custPhone.includes(search);
 
@@ -324,6 +327,7 @@ _*WakMan, sedap bagitahu kawan, tak sedap bagitahu kami.🤙*_
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
                   <th className="p-4">No. Invois</th>
+                  <th className="p-4">No. PO</th>
                   <th className="p-4">Pelanggan</th>
                   <th className="p-4">Tarikh Invois</th>
                   <th className="p-4 text-right">Jumlah (RM)</th>
@@ -342,6 +346,9 @@ _*WakMan, sedap bagitahu kawan, tak sedap bagitahu kami.🤙*_
                     >
                       <td className="p-4 font-mono font-bold text-blue-600">
                         {inv.invoice_number || `#INV-${inv.id}`}
+                      </td>
+                      <td className="p-4 font-mono text-slate-600">
+                        {inv.po_number || "-"}
                       </td>
                       <td className="p-4">
                         <p className="font-bold text-slate-900">

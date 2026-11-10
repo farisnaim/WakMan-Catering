@@ -27,6 +27,7 @@ interface InvoiceItem {
 interface PublicInvoiceData {
   id: number;
   invoice_number: string;
+  po_number?: string | null;
   slug: string | null;
   invoice_date: string | null;
   due_date: string | null;
@@ -256,6 +257,12 @@ export default function PublicInvoicePage({
                     <strong className="text-slate-700">Tarikh Invois:</strong>{" "}
                     {invoice.invoice_date || "-"}
                   </p>
+                  {invoice.po_number && (
+                    <p>
+                      <strong className="text-slate-700">No. PO:</strong>{" "}
+                      {invoice.po_number}
+                    </p>
+                  )}
                   <p>
                     <strong className="text-slate-700">Bayar Sebelum :</strong>{" "}
                     {invoice.due_date || "-"}
