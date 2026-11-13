@@ -190,6 +190,9 @@ export default function PublicQuotationPage({
                 202103208150 (CT0091538-M)
               </p>
               <p className="text-xs font-mono text-slate-500">
+                ☎️ Admin: 019 914 7010
+              </p>
+              <p className="text-xs font-mono text-slate-500">
                 📞 WakMan: 019 645 6542
               </p>
             </div>
